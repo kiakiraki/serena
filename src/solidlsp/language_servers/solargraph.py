@@ -122,10 +122,16 @@ class Solargraph(SolidLanguageServer):
 
         # Fallback to gem exec (for non-Bundler projects or when global solargraph not found)
         if not is_bundler_project:
+            gem_home = os.path.join(repository_root_path, ".venv", "gem_home")
+            os.makedirs(gem_home, exist_ok=True)
+            gem_env = os.environ.copy()
+            gem_env["GEM_HOME"] = gem_home
+            solargraph_exe = os.path.join(gem_home, "bin", "solargraph")
+
             runtime_dependencies = [
                 {
                     "url": "https://rubygems.org/downloads/solargraph-0.51.1.gem",
-                    "installCommand": "gem install solargraph -v 0.51.1",
+                    "installCommand": f"gem install solargraph -v 0.51.1 --no-document --bindir {os.path.join(gem_home, 'bin')}",
                     "binaryName": "solargraph",
                     "archiveType": "gem",
                 }
@@ -134,13 +140,24 @@ class Solargraph(SolidLanguageServer):
             dependency = runtime_dependencies[0]
             try:
                 result = subprocess.run(
-                    ["gem", "list", "^solargraph$", "-i"], check=False, capture_output=True, text=True, cwd=repository_root_path
+                    ["gem", "list", "^solargraph$", "-i"],
+                    check=False,
+                    capture_output=True,
+                    text=True,
+                    cwd=repository_root_path,
+                    env=gem_env,
                 )
                 if result.stdout.strip() == "false":
                     logger.log("Installing Solargraph...", logging.INFO)
-                    subprocess.run(dependency["installCommand"].split(), check=True, capture_output=True, cwd=repository_root_path)
+                    subprocess.run(
+                        dependency["installCommand"].split(),
+                        check=True,
+                        capture_output=True,
+                        cwd=repository_root_path,
+                        env=gem_env,
+                    )
 
-                return "gem exec solargraph"
+                return solargraph_exe
             except subprocess.CalledProcessError as e:
                 raise RuntimeError(f"Failed to check or install Solargraph. {e.stderr}") from e
         else:
@@ -156,7 +173,37 @@ class Solargraph(SolidLanguageServer):
         """
         root_uri = pathlib.Path(repository_absolute_path).as_uri()
         initialize_params = {
-            "capabilities": {},
+            "capabilities": {
+                "workspace": {
+                    "workspaceEdit": {"documentChanges": True},
+                    "didChangeConfiguration": {"dynamicRegistration": True},
+                    "didChangeWatchedFiles": {"dynamicRegistration": True},
+                    "symbol": {
+                        "dynamicRegistration": True,
+                        "symbolKind": {"valueSet": list(range(1, 27))},
+                    },
+                    "executeCommand": {"dynamicRegistration": True},
+                },
+                "textDocument": {
+                    "synchronization": {"dynamicRegistration": True, "willSave": True, "willSaveWaitUntil": True, "didSave": True},
+                    "hover": {"dynamicRegistration": True, "contentFormat": ["markdown", "plaintext"]},
+                    "signatureHelp": {
+                        "dynamicRegistration": True,
+                        "signatureInformation": {
+                            "documentationFormat": ["markdown", "plaintext"],
+                            "parameterInformation": {"labelOffsetSupport": True},
+                        },
+                    },
+                    "definition": {"dynamicRegistration": True},
+                    "references": {"dynamicRegistration": True},
+                    "documentSymbol": {
+                        "dynamicRegistration": True,
+                        "symbolKind": {"valueSet": list(range(1, 27))},
+                        "hierarchicalDocumentSymbolSupport": True,
+                    },
+                    "publishDiagnostics": {"relatedInformation": True},
+                },
+            },
             "trace": "verbose",
             "processId": os.getpid(),
             "rootPath": repository_absolute_path,
@@ -184,11 +231,12 @@ class Solargraph(SolidLanguageServer):
             return
 
         def lang_status_handler(params):
-            # TODO: Should we wait for
-            # server -> client: {'jsonrpc': '2.0', 'method': 'language/status', 'params': {'type': 'ProjectStatus', 'message': 'OK'}}
-            # Before proceeding?
-            if params["type"] == "ServiceReady" and params["message"] == "ServiceReady":
+            if params.get("type") == "ProjectStatus" and params.get("message") == "OK":
+                self.logger.log("Solargraph project has been successfully indexed.", logging.INFO)
                 self.service_ready_event.set()
+            elif params.get("type") == "ServiceReady" and params.get("message") == "ServiceReady":
+                self.logger.log("Solargraph service is ready.", logging.INFO)
+                # This is a good sign, but we will wait for the project to be indexed
 
         def execute_client_command_handler(params):
             return []
@@ -197,7 +245,11 @@ class Solargraph(SolidLanguageServer):
             return
 
         def window_log_message(msg):
-            self.logger.log(f"LSP: window/logMessage: {msg}", logging.INFO)
+            message = msg.get("message", "")
+            self.logger.log(f"LSP: window/logMessage: {message}", logging.INFO)
+            if "Solargraph is ready" in message:
+                self.logger.log("Detected 'Solargraph is ready' message.", logging.INFO)
+                self.service_ready_event.set()
 
         self.server.on_request("client/registerCapability", register_capability_handler)
         self.server.on_notification("language/status", lang_status_handler)
@@ -218,26 +270,25 @@ class Solargraph(SolidLanguageServer):
         self.logger.log(f"Sending init params: {json.dumps(initialize_params, indent=4)}", logging.INFO)
         init_response = self.server.send.initialize(initialize_params)
         self.logger.log(f"Received init response: {init_response}", logging.INFO)
-        assert init_response["capabilities"]["textDocumentSync"] == 2
+        assert init_response["capabilities"]["textDocumentSync"] == 2  # 2 is Full
         assert "completionProvider" in init_response["capabilities"]
         assert init_response["capabilities"]["completionProvider"] == {
             "resolveProvider": True,
             "triggerCharacters": [".", ":", "@"],
         }
         self.server.notify.initialized({})
-        self.completions_available.set()
-
-        self.server_ready.set()
 
         # Wait for server to be ready with timeout, especially important for Bundler environments
-        server_ready_timeout = 60.0
+        server_ready_timeout = 120.0
         self.logger.log(f"Waiting up to {server_ready_timeout} seconds for Solargraph to become ready...", logging.INFO)
 
-        if self.server_ready.wait(timeout=server_ready_timeout):
+        if self.service_ready_event.wait(timeout=server_ready_timeout):
             self.logger.log("Solargraph is ready and available for requests", logging.INFO)
+            self.completions_available.set()
         else:
             self.logger.log(
                 f"Timeout waiting for Solargraph to become ready within {server_ready_timeout} seconds, proceeding anyway. "
                 "This may indicate slow initialization in Bundler environment or large project indexing.",
                 logging.WARNING,
             )
+            self.completions_available.set()  # Set completions available even on timeout

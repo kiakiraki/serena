@@ -42,3 +42,27 @@ class TestRubyLanguageServer:
         print(f"Found definition: {definition_location}")
         assert definition_location["uri"].endswith("lib.rb")
         assert definition_location["range"]["start"]["line"] == 1  # add method on line 2 (0-indexed 1)
+
+    @pytest.mark.parametrize("language_server", [Language.RUBY], indirect=True)
+    def test_request_references_class(self, language_server: SolidLanguageServer) -> None:
+        """Test request_references on the DemoClass class."""
+        file_path = os.path.join("main.rb")
+        symbols, _ = language_server.request_document_symbols(file_path)
+        demo_class_symbol = next((s for s in symbols if s.get("name") == "DemoClass"), None)
+        if not demo_class_symbol or "selectionRange" not in demo_class_symbol:
+            raise AssertionError("DemoClass symbol or its selectionRange not found")
+        sel_start = demo_class_symbol["selectionRange"]["start"]
+        references = language_server.request_references(file_path, sel_start["line"], sel_start["character"])
+        assert len(references) >= 0, "DemoClass should be referenced in multiple files"
+
+    @pytest.mark.parametrize("language_server", [Language.RUBY], indirect=True)
+    def test_request_references_function(self, language_server: SolidLanguageServer) -> None:
+        """Test request_references on the helper_function function."""
+        file_path = os.path.join("main.rb")
+        symbols, _ = language_server.request_document_symbols(file_path)
+        helper_function_symbol = next((s for s in symbols if s.get("name") == "helper_function"), None)
+        if not helper_function_symbol or "selectionRange" not in helper_function_symbol:
+            raise AssertionError("helper_function symbol or its selectionRange not found")
+        sel_start = helper_function_symbol["selectionRange"]["start"]
+        references = language_server.request_references(file_path, sel_start["line"], sel_start["character"])
+        assert len(references) >= 0, "helper_function should be referenced in multiple files"
