@@ -74,7 +74,9 @@ class Solargraph(SolidLanguageServer):
         """
         # Check if Ruby is installed
         try:
+            logger.log("Checking ruby version...", logging.DEBUG)
             result = subprocess.run(["ruby", "--version"], check=True, capture_output=True, cwd=repository_root_path, text=True)
+            logger.log("Ruby version check completed.", logging.DEBUG)
             ruby_version = result.stdout.strip()
             logger.log(f"Ruby version: {ruby_version}", logging.INFO)
 
@@ -167,12 +169,17 @@ class Solargraph(SolidLanguageServer):
 
             dependency = runtime_dependencies[0]
             try:
+                logger.log("Checking if solargraph gem is installed...", logging.DEBUG)
                 result = subprocess.run(
                     ["gem", "list", "^solargraph$", "-i"], check=False, capture_output=True, text=True, cwd=repository_root_path
                 )
+                logger.log("Solargraph gem check completed.", logging.DEBUG)
                 if result.stdout.strip() == "false":
-                    logger.log("Installing Solargraph...", logging.INFO)
-                    subprocess.run(dependency["installCommand"].split(), check=True, capture_output=True, cwd=repository_root_path)
+                    logger.log("Installing Solargraph gem...", logging.INFO)
+                    install_command = dependency["installCommand"].split()
+                    logger.log(f"Running install command: '{' '.join(install_command)}'", logging.DEBUG)
+                    subprocess.run(install_command, check=True, capture_output=True, cwd=repository_root_path)
+                    logger.log("Solargraph gem installation completed.", logging.INFO)
 
                 return "gem exec solargraph"
             except subprocess.CalledProcessError as e:
@@ -343,8 +350,9 @@ class Solargraph(SolidLanguageServer):
 
         # Wait for Solargraph to complete its initial workspace analysis
         # This prevents issues by ensuring background tasks finish
-        self.logger.log("Waiting for Solargraph to complete initial workspace analysis...", logging.INFO)
-        if self.analysis_complete.wait(timeout=60.0):
+        self.logger.log("Waiting for Solargraph to complete initial workspace analysis (timeout=60s)...", logging.INFO)
+        analysis_finished = self.analysis_complete.wait(timeout=60.0)
+        if analysis_finished:
             self.logger.log("Solargraph initial analysis complete, server ready", logging.INFO)
         else:
             self.logger.log("Timeout waiting for Solargraph analysis completion, proceeding anyway", logging.WARNING)

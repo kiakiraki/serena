@@ -934,9 +934,12 @@ class SolidLanguageServer(ABC):
                     self.logger.log(f"No cache hit for symbols with {include_body=} in {relative_file_path}", logging.DEBUG)
 
             self.logger.log(f"Requesting document symbols for {relative_file_path} from the Language Server", logging.DEBUG)
-            response = self.server.send.document_symbol(
-                {"textDocument": {"uri": pathlib.Path(os.path.join(self.repository_root_path, relative_file_path)).as_uri()}}
-            )
+            try:
+                response = self.server.send.document_symbol(
+                    {"textDocument": {"uri": pathlib.Path(os.path.join(self.repository_root_path, relative_file_path)).as_uri()}}
+                )
+            finally:
+                self.logger.log(f"Finished requesting document symbols for {relative_file_path}", logging.DEBUG)
             if response is None:
                 self.logger.log(
                     f"Received None response from the Language Server for document symbols in {relative_file_path}. "
@@ -1107,6 +1110,7 @@ class SolidLanguageServer(ABC):
                         child["parent"] = package_symbol
 
                 elif os.path.isfile(contained_dir_or_file_abs_path):
+                    self.logger.log(f"Processing file for symbol tree: {contained_dir_or_file_rel_path}", logging.DEBUG)
                     _, file_root_nodes = self.request_document_symbols(contained_dir_or_file_rel_path, include_body=include_body)
 
                     # Create file symbol, link with children
