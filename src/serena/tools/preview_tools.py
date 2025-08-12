@@ -9,7 +9,7 @@ class PreviewSymbolReplacementTool(Tool):
     """
     Preview a symbol replacement without actually applying the changes.
     Shows what the diff would look like if the replacement were applied.
-    
+
     Requires an active project with Language Server support.
     """
 
@@ -29,9 +29,7 @@ class PreviewSymbolReplacementTool(Tool):
         try:
             # Get symbol information
             symbol_retriever = self.create_language_server_symbol_retriever()
-            symbols = symbol_retriever.find_by_name(
-                name_path, within_relative_path=relative_path, include_body=True
-            )
+            symbols = symbol_retriever.find_by_name(name_path, within_relative_path=relative_path, include_body=True)
 
             if not symbols:
                 return f"Error: Symbol '{name_path}' not found in {relative_path}"
@@ -60,10 +58,10 @@ class PreviewSymbolReplacementTool(Tool):
 
         except Exception as e:
             log.error(f"Error generating preview: {e}", exc_info=e)
-            return f"Error generating preview: {str(e)}"
+            return f"Error generating preview: {e!s}"
 
 
-class PreviewFileDiffTool(Tool, ToolMarkerDoesNotRequireActiveProject):
+class PreviewFileDiffTool(Tool):
     """
     Preview changes between arbitrary old and new content.
     Useful for showing what changes would be made before applying them.
@@ -110,4 +108,4 @@ class PreviewFileDiffTool(Tool, ToolMarkerDoesNotRequireActiveProject):
 
         except Exception as e:
             log.error(f"Error generating preview: {e}", exc_info=e)
-            return f"Error generating preview: {str(e)}"
+            return f"Error generating preview: {e!s}"

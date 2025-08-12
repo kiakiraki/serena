@@ -183,8 +183,6 @@ class SerenaDashboardAPI:
     def diff_manager(self) -> DiffManager:
         return self._diff_manager
 
-
-
     def _shutdown(self) -> None:
         log.info("Shutting down Serena")
         if self._shutdown_callback:

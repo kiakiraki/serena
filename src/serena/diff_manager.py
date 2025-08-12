@@ -52,16 +52,9 @@ class DiffManager:
         )
 
         # Count changes (exclude header lines and hunk headers)
-        diff_lines = unified_diff.split("
-")
-        lines_added = len([
-            line for line in diff_lines 
-            if line.startswith("+") and not line.startswith("+++")
-        ])
-        lines_removed = len([
-            line for line in diff_lines 
-            if line.startswith("-") and not line.startswith("---")
-        ])
+        diff_lines = unified_diff.split("\n")
+        lines_added = len([line for line in diff_lines if line.startswith("+") and not line.startswith("+++")])
+        lines_removed = len([line for line in diff_lines if line.startswith("-") and not line.startswith("---")])
 
         return DiffPreview(
             file_path=file_path,
