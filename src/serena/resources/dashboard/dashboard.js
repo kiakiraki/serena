@@ -61,13 +61,6 @@ class Dashboard {
         this.$statsSection = $('#stats-section');
         this.$refreshStats = $('#refresh-stats');
         this.$clearStats = $('#clear-stats');
-
-        this.$togglePreview = $('#toggle-preview');
-        this.$previewSection = $('#preview-section');
-        this.$refreshPreview = $('#refresh-preview');
-        this.$clearPreview = $('#clear-preview');
-        this.$previewContainer = $('#preview-container');
-
         this.$themeToggle = $('#theme-toggle');
         this.$themeIcon = $('#theme-icon');
         this.$themeText = $('#theme-text');
@@ -83,11 +76,6 @@ class Dashboard {
         this.$toggleStats.click(this.toggleStats.bind(this));
         this.$refreshStats.click(this.loadStats.bind(this));
         this.$clearStats.click(this.clearStats.bind(this));
-
-        this.$togglePreview.click(this.togglePreview.bind(this));
-        this.$refreshPreview.click(this.loadPreview.bind(this));
-        this.$clearPreview.click(this.clearPreview.bind(this));
-
         this.$themeToggle.click(this.toggleTheme.bind(this));
 
         // initialize theme
@@ -268,139 +256,6 @@ class Dashboard {
                 console.error('Error clearing stats:', error);
             }
         });
-    }
-
-    togglePreview() {
-        if (this.$previewSection.is(':visible')) {
-            this.$previewSection.hide();
-            this.$togglePreview.text('Show Preview');
-        } else {
-            this.$previewSection.show();
-            this.$togglePreview.text('Hide Preview');
-            this.loadPreview();
-        }
-    }
-
-    loadPreview() {
-        let self = this;
-        $.ajax({
-            url: '/get_current_preview',
-            type: 'GET',
-            success: function(response) {
-                self.displayPreview(response);
-            },
-            error: function(xhr, status, error) {
-                console.error('Error loading preview:', error);
-                self.$previewContainer.html('<div class="error-message">Error loading preview: ' + error + '</div>');
-            }
-        });
-    }
-
-    clearPreview() {
-        let self = this;
-        $.ajax({
-            url: '/clear_preview',
-            type: 'POST',
-            success: function() {
-                self.loadPreview();
-            },
-            error: function(xhr, status, error) {
-                console.error('Error clearing preview:', error);
-            }
-        });
-    }
-
-    displayPreview(response) {
-        this.$previewContainer.empty();
-        
-        if (response.error || !response.preview) {
-            $('#no-preview-message').show();
-            return;
-        }
-        
-        $('#no-preview-message').hide();
-        
-        const preview = response.preview;
-        const previewHtml = this.createPreviewHtml(preview);
-        this.$previewContainer.append(previewHtml);
-    }
-
-    createPreviewHtml(preview) {
-        let headerInfo = 'Diff Preview';
-        if (preview.symbol_name) {
-            headerInfo += ` - ${preview.symbol_name}`;
-        }
-        
-        const previewContainer = $('<div>').addClass('diff-container diff-preview');
-        
-        const header = $('<div>').addClass('diff-header');
-        header.html(`
-            <div>
-                <div>${headerInfo}</div>
-                <div class="diff-meta">
-                    <span>📁 ${preview.file_path}</span>
-                </div>
-            </div>
-            <div class="diff-stats">
-                <span class="diff-added-count">+${preview.lines_added}</span>
-                <span class="diff-removed-count">-${preview.lines_removed}</span>
-            </div>
-        `);
-        
-        const content = $('<div>').addClass('diff-content');
-        
-        if (preview.unified_diff) {
-            const formattedDiff = this.formatUnifiedDiff(preview.unified_diff);
-            content.html(formattedDiff);
-        } else {
-            content.html('<div class="diff-no-changes">No changes detected</div>');
-        }
-        
-        previewContainer.append(header);
-        previewContainer.append(content);
-        
-        return previewContainer;
-    }
-
-    formatUnifiedDiff(unifiedDiff) {
-        const lines = unifiedDiff.split('
-');
-        let formattedLines = [];
-        
-        lines.forEach(line => {
-            let className = 'diff-context';
-            
-            if (line.startsWith('+++') || line.startsWith('---')) {
-                // Skip file headers
-                return;
-            } else if (line.startsWith('@@')) {
-                className = 'diff-hunk';
-            } else if (line.startsWith('+')) {
-                className = 'diff-added';
-            } else if (line.startsWith('-')) {
-                className = 'diff-removed';
-            }
-            
-            const escapedLine = this.escapeHtml(line);
-            formattedLines.push(`<div class="diff-line ${className}">${escapedLine}</div>`);
-        });
-        
-        return formattedLines.join('');
-    }
-
-    escapeHtml(text) {
-        if (typeof text !== 'string') return text;
-        
-        const patterns = {
-            '<': '&lt;',
-            '>': '&gt;',
-            '&': '&amp;',
-            '"': '&quot;',
-            "'": '&#x27;',
-            '`': '&#x60;'
-        };
-        
-        return text.replace(/[<>&"'`]/g, match => patterns[match]);
     }
 
     displayStats(stats, tokenCountEstimatorName) {

@@ -10,7 +10,6 @@ from sensai.util import logging
 
 from serena.analytics import ToolUsageStats
 from serena.constants import SERENA_DASHBOARD_DIR
-from serena.diff_manager import DiffManager, DiffPreview
 from serena.util.logging import MemoryLogHandler
 
 log = logging.getLogger(__name__)
@@ -36,18 +35,6 @@ class ResponseToolStats(BaseModel):
     stats: dict[str, dict[str, int]]
 
 
-class RequestPreviewDiff(BaseModel):
-    old_content: str
-    new_content: str
-    file_path: str
-    symbol_name: str = ""
-
-
-class ResponsePreviewDiff(BaseModel):
-    preview: DiffPreview | None
-    error: str | None = None
-
-
 class SerenaDashboardAPI:
     log = logging.getLogger(__qualname__)
 
@@ -57,15 +44,12 @@ class SerenaDashboardAPI:
         tool_names: list[str],
         shutdown_callback: Callable[[], None] | None = None,
         tool_usage_stats: ToolUsageStats | None = None,
-        diff_manager: DiffManager | None = None,
     ) -> None:
         self._memory_log_handler = memory_log_handler
         self._tool_names = tool_names
         self._shutdown_callback = shutdown_callback
         self._app = Flask(__name__)
         self._tool_usage_stats = tool_usage_stats
-        self._diff_manager = diff_manager or DiffManager()
-
         self._setup_routes()
 
     @property
@@ -119,34 +103,6 @@ class SerenaDashboardAPI:
             self._shutdown()
             return {"status": "shutting down"}
 
-        # External API endpoint for creating diff previews
-        # Note: Internal tools use diff_manager.set_latest() directly
-        @self._app.route("/preview_diff", methods=["POST"])
-        def preview_diff() -> dict[str, Any]:
-            request_data = request.get_json()
-            if not request_data:
-                return ResponsePreviewDiff(preview=None, error="Invalid request data").model_dump()
-
-            try:
-                preview_request = RequestPreviewDiff.model_validate(request_data)
-                result = self._create_preview(preview_request)
-                return result.model_dump()
-            except Exception as e:
-                return ResponsePreviewDiff(preview=None, error=str(e)).model_dump()
-
-        @self._app.route("/get_current_preview", methods=["GET"])
-        def get_current_preview() -> dict[str, Any]:
-            preview = self._diff_manager.get_latest()
-            if preview:
-                return ResponsePreviewDiff(preview=preview).model_dump()
-            else:
-                return ResponsePreviewDiff(preview=None, error="No preview available").model_dump()
-
-        @self._app.route("/clear_preview", methods=["POST"])
-        def clear_preview() -> dict[str, str]:
-            self._diff_manager.clear_latest()
-            return {"status": "cleared"}
-
     def _get_log_messages(self, request_log: RequestLog) -> ResponseLog:
         all_messages = self._memory_log_handler.get_log_messages()
         requested_messages = all_messages[request_log.start_idx :] if request_log.start_idx <= len(all_messages) else []
@@ -164,24 +120,6 @@ class SerenaDashboardAPI:
     def _clear_tool_stats(self) -> None:
         if self._tool_usage_stats is not None:
             self._tool_usage_stats.clear()
-
-    def _create_preview(self, request: RequestPreviewDiff) -> ResponsePreviewDiff:
-        """Create and store a new diff preview"""
-        try:
-            preview = self._diff_manager.generate_diff_preview(
-                old_content=request.old_content,
-                new_content=request.new_content,
-                file_path=request.file_path,
-                symbol_name=request.symbol_name or None,
-            )
-            self._diff_manager.set_latest(preview)
-            return ResponsePreviewDiff(preview=preview)
-        except Exception as e:
-            return ResponsePreviewDiff(preview=None, error=str(e))
-
-    @property
-    def diff_manager(self) -> DiffManager:
-        return self._diff_manager
 
     def _shutdown(self) -> None:
         log.info("Shutting down Serena")
