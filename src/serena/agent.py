@@ -15,6 +15,9 @@ from logging import Logger
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Optional, TypeVar
 
+if TYPE_CHECKING:
+    from serena.diff_manager import DiffManager
+
 from sensai.util import logging
 from sensai.util.logging import LogTime
 
@@ -180,10 +183,15 @@ class SerenaAgent:
             log.info(f"Tool usage statistics recording is enabled with token count estimator: {token_count_estimator.name}.")
             self._tool_usage_stats = ToolUsageStats(token_count_estimator)
 
+        # initialize diff manager for preview functionality
+        from serena.diff_manager import DiffManager
+
+        self._diff_manager = DiffManager()
+
         # start the dashboard (web frontend), registering its log handler
         if self.serena_config.web_dashboard:
             self._dashboard_thread, port = SerenaDashboardAPI(
-                get_memory_log_handler(), tool_names, tool_usage_stats=self._tool_usage_stats
+                get_memory_log_handler(), tool_names, tool_usage_stats=self._tool_usage_stats, diff_manager=self._diff_manager
             ).run_in_thread()
             dashboard_url = f"http://127.0.0.1:{port}/dashboard/index.html"
             log.info("Serena web dashboard started at %s", dashboard_url)
@@ -342,6 +350,11 @@ class SerenaAgent:
         if project is None:
             raise ValueError("No active project. Please activate a project first.")
         return project
+
+    @property
+    def diff_manager(self) -> "DiffManager":
+        """Get the diff manager instance for preview functionality"""
+        return self._diff_manager
 
     def set_modes(self, modes: list[SerenaAgentMode]) -> None:
         """

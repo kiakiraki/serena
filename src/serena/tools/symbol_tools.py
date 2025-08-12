@@ -19,7 +19,6 @@ from serena.tools import (
 from serena.tools.tools_base import ToolMarkerOptional
 from solidlsp.ls_types import SymbolKind
 
-
 def _sanitize_symbol_dict(symbol_dict: dict[str, Any]) -> dict[str, Any]:
     """
     Sanitize a symbol dictionary inplace by removing unnecessary information.

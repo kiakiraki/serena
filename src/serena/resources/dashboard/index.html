@@ -250,6 +250,139 @@
                 gap: 5px;
             }
         }
+
+        /* Diff-specific styles */
+        .diff-container {
+            margin-bottom: 20px;
+            border: 1px solid var(--border-color);
+            border-radius: 5px;
+            background-color: var(--bg-secondary);
+            overflow: hidden;
+            box-shadow: var(--shadow);
+            transition: background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .diff-header {
+            background-color: var(--stats-header);
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--border-color);
+            font-weight: bold;
+            color: var(--text-primary);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease;
+        }
+
+        .diff-meta {
+            display: flex;
+            gap: 15px;
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        .diff-stats {
+            display: flex;
+            gap: 10px;
+            font-size: 12px;
+        }
+
+        .diff-added-count {
+            color: #28a745;
+        }
+
+        .diff-removed-count {
+            color: #dc3545;
+        }
+
+        .diff-content {
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+            font-size: 12px;
+            line-height: 1.4;
+            max-height: 400px;
+            overflow-y: auto;
+            background-color: var(--bg-secondary);
+        }
+
+        .diff-line {
+            padding: 2px 16px;
+            margin: 0;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+
+        .diff-added {
+            background-color: #e6ffed;
+            color: #24292e;
+            border-left: 3px solid #28a745;
+        }
+
+        .diff-removed {
+            background-color: #ffeef0;
+            color: #24292e;
+            border-left: 3px solid #dc3545;
+        }
+
+        .diff-context {
+            background-color: transparent;
+            color: var(--text-primary);
+            border-left: 3px solid transparent;
+        }
+
+        .diff-hunk {
+            background-color: #f1f8ff;
+            color: #586069;
+            border-left: 3px solid #0969da;
+            font-weight: bold;
+        }
+
+        [data-theme="dark"] .diff-added {
+            background-color: #0e4429;
+            color: #aff5b4;
+            border-left: 3px solid #28a745;
+        }
+
+        [data-theme="dark"] .diff-removed {
+            background-color: #67060c;
+            color: #ffdcd7;
+            border-left: 3px solid #dc3545;
+        }
+
+        [data-theme="dark"] .diff-hunk {
+            background-color: #0c2d6b;
+            color: #79c0ff;
+            border-left: 3px solid #0969da;
+        }
+
+        .diff-no-changes {
+            padding: 20px;
+            text-align: center;
+            color: var(--text-muted);
+            font-style: italic;
+        }
+
+        .diff-preview {
+            border: 2px dashed #ffa500;
+            background-color: rgba(255, 165, 0, 0.1);
+            position: relative;
+        }
+
+        .diff-preview .diff-header {
+            background-color: rgba(255, 165, 0, 0.2);
+        }
+
+        .diff-preview::before {
+            content: "PREVIEW";
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            background: #ffa500;
+            color: white;
+            padding: 2px 6px;
+            font-size: 10px;
+            border-radius: 3px;
+            font-weight: bold;
+        }
     </style>
 </head>
 
@@ -262,6 +395,8 @@
         <button id="load-logs" class="btn">Reload Log</button>
         <button id="shutdown" class="btn">Shutdown Server</button>
         <button id="toggle-stats" class="btn">Show Stats</button>
+        <button id="toggle-preview" class="btn">Show Preview</button>
+
         <div id="theme-toggle" class="theme-toggle" title="Toggle theme">
             <span class="icon" id="theme-icon">🌙</span>
             <span id="theme-text">Dark</span>
@@ -301,6 +436,20 @@
                 <h3>Input vs Output Tokens</h3>
                 <canvas id="tokens-chart" height="120"></canvas>
             </div>
+        </div>
+    </div>
+
+    <div id="preview-section" style="display:none; margin-top:20px;">
+        <div style="text-align:center; margin-bottom:20px;">
+            <button id="refresh-preview" class="btn">Refresh Preview</button>
+            <button id="clear-preview" class="btn">Clear Preview</button>
+        </div>
+
+        <div id="no-preview-message" style="text-align:center; color:var(--text-muted); font-style:italic; display:none;">
+            No diff preview available. Use preview tools to generate a diff preview.
+        </div>
+
+        <div id="preview-container">
         </div>
     </div>
 
