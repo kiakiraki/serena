@@ -259,38 +259,13 @@ class RubyLSP(SolidLanguageServer):
             "rootPath": repository_absolute_path,
             "rootUri": root_uri,
             "initializationOptions": {
-                "enabledFeatures": {
-                    "codeActions": True,
-                    "diagnostics": True,
-                    "documentHighlights": True,
-                    "documentLink": True,
-                    "documentSymbols": True,
-                    "foldingRanges": True,
-                    "formatting": True,
-                    "hover": True,
-                    "inlayHint": True,
-                    "onTypeFormatting": True,
-                    "selectionRanges": True,
-                    "semanticHighlighting": True,
-                    "completion": True,
-                    "codeLens": True,
-                    "definition": True,
-                    "workspaceSymbol": True,
-                    "signatureHelp": True,
-                    "typeHierarchy": True,
-                },
-                "experimentalFeaturesEnabled": False,
+                # Most features are enabled by default in ruby-lsp
+                # Only specify non-default configurations here
                 "featuresConfiguration": {},
-                "formatter": "auto",
-                "linters": [],
             },
             "capabilities": {
                 "workspace": {
                     "workspaceEdit": {"documentChanges": True},
-                    "didChangeConfiguration": {"dynamicRegistration": True},
-                    "didChangeWatchedFiles": {"dynamicRegistration": True},
-                    "symbol": {"dynamicRegistration": True},
-                    "executeCommand": {"dynamicRegistration": True},
                     "configuration": True,
                     "workspaceFolders": True,
                 },
@@ -299,62 +274,13 @@ class RubyLSP(SolidLanguageServer):
                         "hierarchicalDocumentSymbolSupport": True,
                         "symbolKind": {"valueSet": list(range(1, 27))},
                     },
-                    "codeAction": {
-                        "dynamicRegistration": True,
-                        "codeActionLiteralSupport": {
-                            "codeActionKind": {
-                                "valueSet": [
-                                    "quickfix",
-                                    "refactor",
-                                    "refactor.extract",
-                                    "refactor.inline",
-                                    "refactor.rewrite",
-                                    "source.organizeImports",
-                                ]
-                            }
-                        },
-                    },
-                    "completion": {
-                        "dynamicRegistration": True,
-                        "completionItem": {
-                            "snippetSupport": True,
-                            "commitCharactersSupport": True,
-                            "documentationFormat": ["markdown", "plaintext"],
-                            "deprecatedSupport": True,
-                            "preselectSupport": True,
-                        },
-                        "contextSupport": True,
-                    },
-                    "hover": {
-                        "dynamicRegistration": True,
-                        "contentFormat": ["markdown", "plaintext"],
-                    },
-                    "definition": {"dynamicRegistration": True},
-                    "references": {"dynamicRegistration": True},
-                    "documentHighlight": {"dynamicRegistration": True},
-                    "formatting": {"dynamicRegistration": True},
-                    "rangeFormatting": {"dynamicRegistration": True},
-                    "onTypeFormatting": {"dynamicRegistration": True},
-                    "signatureHelp": {
-                        "dynamicRegistration": True,
-                        "signatureInformation": {
-                            "documentationFormat": ["markdown", "plaintext"],
-                            "parameterInformation": {"labelOffsetSupport": True},
-                        },
-                    },
-                    "foldingRange": {"dynamicRegistration": True},
-                    "selectionRange": {"dynamicRegistration": True},
                     "publishDiagnostics": {
                         "relatedInformation": True,
-                        "versionSupport": False,
                         "tagSupport": {"valueSet": [1, 2]},
                     },
                 },
-                "window": {
-                    "workDoneProgress": True,
-                },
             },
-            "trace": "verbose",
+            "trace": "off",
             "workspaceFolders": [
                 {
                     "uri": root_uri,
