@@ -474,14 +474,39 @@ class LanguageServerSymbolRetriever:
         The only parameter not mentioned there is `within_relative_path`, which can be used to restrict the search
         to symbols within a specific file or directory.
         """
+        import time
+
+        # Add debugging for symbol finding, especially for complex searches
+        start_time = time.time()
+        log.info(
+            f"Starting symbol search for '{name_path}' within '{within_relative_path or 'entire project'}', include_body={include_body}"
+        )
+
         symbols: list[LanguageServerSymbol] = []
-        symbol_roots = self._lang_server.request_full_symbol_tree(within_relative_path=within_relative_path, include_body=include_body)
-        for root in symbol_roots:
-            symbols.extend(
-                LanguageServerSymbol(root).find(
+        try:
+            symbol_roots = self._lang_server.request_full_symbol_tree(within_relative_path=within_relative_path, include_body=include_body)
+            log.info(f"Retrieved {len(symbol_roots)} symbol roots in {time.time() - start_time:.2f} seconds")
+
+            for i, root in enumerate(symbol_roots):
+                found_symbols = LanguageServerSymbol(root).find(
                     name_path, include_kinds=include_kinds, exclude_kinds=exclude_kinds, substring_matching=substring_matching
                 )
-            )
+                symbols.extend(found_symbols)
+                if (i + 1) % 100 == 0:  # Log progress every 100 roots
+                    log.info(f"Processed {i + 1}/{len(symbol_roots)} symbol roots, found {len(symbols)} matches so far")
+
+            elapsed_time = time.time() - start_time
+            log.info(f"Symbol search completed: found {len(symbols)} matches for '{name_path}' in {elapsed_time:.2f} seconds")
+
+            # Log warning if search took too long
+            if elapsed_time > 30:
+                log.warning(f"Symbol search for '{name_path}' took {elapsed_time:.2f} seconds, which is quite slow")
+
+        except Exception as e:
+            elapsed_time = time.time() - start_time
+            log.error(f"Symbol search for '{name_path}' failed after {elapsed_time:.2f} seconds: {e}")
+            raise
+
         return symbols
 
     def get_document_symbols(self, relative_path: str) -> list[LanguageServerSymbol]:
