@@ -36,11 +36,16 @@ class Solargraph(SolidLanguageServer):
         Use LanguageServer.create() instead.
         """
         solargraph_executable_path = self._setup_runtime_dependencies(logger, config, repository_root_path)
+
+        # Temporarily enable debug logging for Solargraph to diagnose timeout issues
+        debug_env = {"SOLARGRAPH_LOG_LEVEL": "debug"}
+        logger.log("Enabling SOLARGRAPH_LOG_LEVEL=debug for timeout debugging", logging.INFO)
+
         super().__init__(
             config,
             logger,
             repository_root_path,
-            ProcessLaunchInfo(cmd=f"{solargraph_executable_path} stdio", cwd=repository_root_path),
+            ProcessLaunchInfo(cmd=f"{solargraph_executable_path} stdio", cwd=repository_root_path, env=debug_env),
             "ruby",
             solidlsp_settings,
         )
@@ -50,7 +55,9 @@ class Solargraph(SolidLanguageServer):
         self.resolve_main_method_available = threading.Event()
 
         # Set timeout for Solargraph requests - Bundler environments may need more time
-        self.set_request_timeout(120.0)  # 120 seconds for initialization and requests
+        self.set_request_timeout(
+            120.0
+        )  # 120 seconds for initialization and requests  # 120 seconds for initialization and requests  # 120 seconds for initialization and requests
 
     @override
     def is_ignored_dirname(self, dirname: str) -> bool:
