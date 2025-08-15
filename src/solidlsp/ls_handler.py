@@ -471,7 +471,26 @@ class SolidLanguageServerHandler:
         self._send_payload(make_request(method, request_id, params))
 
         self._log(f"Waiting for response to request {method} with params:\n{params}")
-        result = request.get_result(timeout=self._request_timeout)
+        # Add debugging for timeout issues, especially for Ruby projects
+        import time
+
+        start_time = time.time()
+        try:
+            result = request.get_result(timeout=self._request_timeout)
+            elapsed_time = time.time() - start_time
+            if elapsed_time > 10:  # Log if request takes more than 10 seconds
+                self._log(f"Request {method} took {elapsed_time:.2f} seconds to complete")
+        except TimeoutError as e:
+            elapsed_time = time.time() - start_time
+            self._log(f"Request {method} timed out after {elapsed_time:.2f} seconds (timeout={self._request_timeout})", level=logging.ERROR)
+            # Check if language server process is still alive
+            if hasattr(self, "_process") and self._process:
+                if self._process.poll() is not None:
+                    self._log(f"Language server process has died (exit code: {self._process.poll()})", level=logging.ERROR)
+                else:
+                    self._log("Language server process is still running but not responding", level=logging.WARNING)
+            raise e
+
         log.debug("Completed: %s", request)
 
         self._log("Processing result")
