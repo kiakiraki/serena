@@ -50,7 +50,7 @@ class Solargraph(SolidLanguageServer):
         self.resolve_main_method_available = threading.Event()
 
         # Set timeout for Solargraph requests - Bundler environments may need more time
-        self.set_request_timeout(120.0)  # 120 seconds for initialization and requests
+        self.set_request_timeout(15.0)  # 15 seconds for symbol search requests
 
     @override
     def is_ignored_dirname(self, dirname: str) -> bool:
@@ -344,7 +344,7 @@ class Solargraph(SolidLanguageServer):
         # Wait for Solargraph to complete its initial workspace analysis
         # This prevents issues by ensuring background tasks finish
         self.logger.log("Waiting for Solargraph to complete initial workspace analysis...", logging.INFO)
-        if self.analysis_complete.wait(timeout=60.0):
+        if self.analysis_complete.wait(timeout=120.0):
             self.logger.log("Solargraph initial analysis complete, server ready", logging.INFO)
         else:
             self.logger.log("Timeout waiting for Solargraph analysis completion, proceeding anyway", logging.WARNING)
