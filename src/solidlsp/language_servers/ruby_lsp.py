@@ -306,7 +306,14 @@ class RubyLsp(SolidLanguageServer):
         self.logger.log(f"Received init response: {init_response}", logging.INFO)
 
         # Verify expected capabilities
-        assert init_response["capabilities"]["textDocumentSync"] in [1, 2]  # Full or Incremental
+        # Note: ruby-lsp may return textDocumentSync in different formats (number or object)
+        text_document_sync = init_response["capabilities"].get("textDocumentSync")
+        if isinstance(text_document_sync, int):
+            assert text_document_sync in [1, 2], f"Unexpected textDocumentSync value: {text_document_sync}"
+        elif isinstance(text_document_sync, dict):
+            # ruby-lsp returns an object with change property
+            assert "change" in text_document_sync, "textDocumentSync object should have 'change' property"
+        
         assert "completionProvider" in init_response["capabilities"]
 
         self.server.notify.initialized({})
