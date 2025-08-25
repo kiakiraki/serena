@@ -313,14 +313,14 @@ class RubyLsp(SolidLanguageServer):
         elif isinstance(text_document_sync, dict):
             # ruby-lsp returns an object with change property
             assert "change" in text_document_sync, "textDocumentSync object should have 'change' property"
-        
+
         assert "completionProvider" in init_response["capabilities"]
 
         self.server.notify.initialized({})
         # Wait for ruby-lsp to complete its initial indexing
         # ruby-lsp has fast indexing
         self.logger.log("Waiting for ruby-lsp to complete initial indexing...", logging.INFO)
-        if self.analysis_complete.wait(timeout=15.0):
+        if self.analysis_complete.wait(timeout=30.0):
             self.logger.log("ruby-lsp initial indexing complete, server ready", logging.INFO)
         else:
             self.logger.log("Timeout waiting for ruby-lsp indexing completion, proceeding anyway", logging.WARNING)

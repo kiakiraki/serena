@@ -87,7 +87,7 @@ class TestRubyLspBasic:
         # Check for User methods
         assert SymbolUtils.symbol_tree_contains_name(symbols, "full_info"), "full_info method not found"
         assert SymbolUtils.symbol_tree_contains_name(symbols, "to_hash"), "to_hash method not found"
-        assert SymbolUtils.symbol_tree_contains_name(symbols, "from_hash"), "from_hash method not found"
+        assert SymbolUtils.symbol_tree_contains_name(symbols, "self.from_hash"), "self.from_hash method not found"
 
     @pytest.mark.parametrize("language_server", [Language.RUBY], indirect=True)
     def test_document_symbols(self, language_server: SolidLanguageServer) -> None:

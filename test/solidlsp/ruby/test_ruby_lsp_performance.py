@@ -91,7 +91,7 @@ class TestRubyLspPerformance:
                     collect_symbol_names(sym["children"])
 
         for file_symbols in symbols:
-            collect_symbol_names(file_symbols)
+            collect_symbol_names([file_symbols])
 
         # Should find symbols from different files
         expected_symbols = ["DemoClass", "Calculator", "User", "Product", "MathUtils"]
