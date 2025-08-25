@@ -9,7 +9,7 @@ from solidlsp.ls_utils import SymbolUtils
 
 
 @pytest.mark.ruby
-class TestRubyLspBasic:
+class TestRubyBasic:
     @pytest.mark.parametrize("language_server", [Language.RUBY], indirect=True)
     def test_find_symbol(self, language_server: SolidLanguageServer) -> None:
         """Test basic symbol discovery with ruby-lsp"""
