@@ -36,6 +36,7 @@ class Language(str, Enum):
     TYPESCRIPT = "typescript"
     GO = "go"
     RUBY = "ruby"
+    RUBY_LSP = "ruby_lsp"
     DART = "dart"
     CPP = "cpp"
     PHP = "php"
@@ -93,8 +94,8 @@ class Language(str, Enum):
                 return FilenameMatcher("*.rs")
             case self.GO:
                 return FilenameMatcher("*.go")
-            case self.RUBY:
-                return FilenameMatcher("*.rb")
+            case self.RUBY | self.RUBY_LSP:
+                return FilenameMatcher("*.rb", "*.erb")
             case self.CPP:
                 return FilenameMatcher("*.cpp", "*.h", "*.hpp", "*.c", "*.hxx", "*.cc", "*.cxx")
             case self.KOTLIN:

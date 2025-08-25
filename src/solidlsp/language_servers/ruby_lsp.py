@@ -1,56 +1,53 @@
 """
-Provides Ruby specific instantiation of the LanguageServer class using Solargraph.
-Contains various configurations and settings specific to Ruby.
+Ruby LSP Language Server implementation using Shopify's ruby-lsp.
+Provides modern Ruby language server capabilities with improved performance.
 """
 
 import json
 import logging
 import os
 import pathlib
-import re
 import shutil
 import subprocess
 import threading
 
-from overrides import override
+from typing_extensions import override
 
-from solidlsp.ls import SolidLanguageServer
+from solidlsp.language_servers.solid_language_server import SolidLanguageServer
 from solidlsp.ls_config import LanguageServerConfig
-from solidlsp.ls_logger import LanguageServerLogger
-from solidlsp.lsp_protocol_handler.lsp_types import InitializeParams
-from solidlsp.lsp_protocol_handler.server import ProcessLaunchInfo
+from solidlsp.ls_protocol_types import InitializeParams
+from solidlsp.process_launcher import ProcessLaunchInfo
 from solidlsp.settings import SolidLSPSettings
+from solidlsp.utils import LanguageServerLogger
 
 
-class Solargraph(SolidLanguageServer):
+class RubyLsp(SolidLanguageServer):
     """
-    Provides Ruby specific instantiation of the LanguageServer class using Solargraph.
-    Contains various configurations and settings specific to Ruby.
+    Provides Ruby specific instantiation of the LanguageServer class using ruby-lsp.
+    Contains various configurations and settings specific to Ruby with modern LSP features.
     """
 
     def __init__(
         self, config: LanguageServerConfig, logger: LanguageServerLogger, repository_root_path: str, solidlsp_settings: SolidLSPSettings
     ):
         """
-        Creates a Solargraph instance. This class is not meant to be instantiated directly.
+        Creates a RubyLsp instance. This class is not meant to be instantiated directly.
         Use LanguageServer.create() instead.
         """
-        solargraph_executable_path = self._setup_runtime_dependencies(logger, config, repository_root_path)
+        ruby_lsp_executable = self._setup_runtime_dependencies(logger, config, repository_root_path)
         super().__init__(
             config,
             logger,
             repository_root_path,
-            ProcessLaunchInfo(cmd=f"{solargraph_executable_path} stdio", cwd=repository_root_path),
+            ProcessLaunchInfo(cmd=ruby_lsp_executable, cwd=repository_root_path),
             "ruby",
             solidlsp_settings,
         )
         self.analysis_complete = threading.Event()
         self.service_ready_event = threading.Event()
-        self.initialize_searcher_command_available = threading.Event()
-        self.resolve_main_method_available = threading.Event()
 
-        # Set timeout for Solargraph requests - Bundler environments may need more time
-        self.set_request_timeout(120.0)  # 120 seconds for initialization and requests
+        # Set timeout for ruby-lsp requests - ruby-lsp is fast
+        self.set_request_timeout(30.0)  # 30 seconds for initialization and requests
 
     @override
     def is_ignored_dirname(self, dirname: str) -> bool:
@@ -64,13 +61,17 @@ class Solargraph(SolidLanguageServer):
             "doc",  # Generated documentation
             "node_modules",  # Node modules (for Rails with JS)
             "storage",  # Active Storage files (Rails)
+            "public/packs",  # Webpacker output
+            "public/webpack",  # Webpack output
+            "public/assets",  # Rails compiled assets
         ]
         return super().is_ignored_dirname(dirname) or dirname in ruby_ignored_dirs
 
     @staticmethod
     def _setup_runtime_dependencies(logger: LanguageServerLogger, config: LanguageServerConfig, repository_root_path: str) -> str:
         """
-        Setup runtime dependencies for Solargraph and return the command to start the server.
+        Setup runtime dependencies for ruby-lsp and return the command to start the server.
+        ruby-lsp handles Bundler automatically.
         """
         # Check if Ruby is installed
         try:
@@ -79,11 +80,13 @@ class Solargraph(SolidLanguageServer):
             logger.log(f"Ruby version: {ruby_version}", logging.INFO)
 
             # Extract version number for compatibility checks
+            import re
+
             version_match = re.search(r"ruby (\d+)\.(\d+)\.(\d+)", ruby_version)
             if version_match:
                 major, minor, patch = map(int, version_match.groups())
                 if major < 2 or (major == 2 and minor < 6):
-                    logger.log(f"Warning: Ruby {major}.{minor}.{patch} detected. Solargraph works best with Ruby 2.6+", logging.WARNING)
+                    logger.log(f"Warning: Ruby {major}.{minor}.{patch} detected. ruby-lsp works best with Ruby 2.6+", logging.WARNING)
 
         except subprocess.CalledProcessError as e:
             error_msg = e.stderr.decode() if e.stderr else "Unknown error"
@@ -99,92 +102,21 @@ class Solargraph(SolidLanguageServer):
                 "  - System package manager (brew install ruby, apt install ruby, etc.)"
             ) from e
 
-        # Check for Bundler project (Gemfile exists)
-        gemfile_path = os.path.join(repository_root_path, "Gemfile")
-        gemfile_lock_path = os.path.join(repository_root_path, "Gemfile.lock")
-        is_bundler_project = os.path.exists(gemfile_path)
+        # Check if ruby-lsp is available
+        ruby_lsp_path = shutil.which("ruby-lsp")
+        if ruby_lsp_path:
+            logger.log(f"Found ruby-lsp at: {ruby_lsp_path}", logging.INFO)
+            return "ruby-lsp"
 
-        if is_bundler_project:
-            logger.log("Detected Bundler project (Gemfile found)", logging.INFO)
-
-            # Check if bundle command is available
-            bundle_path = shutil.which("bundle")
-            if not bundle_path:
-                # Try common bundle executables
-                for bundle_cmd in ["bin/bundle", "bundle"]:
-                    bundle_full_path = (
-                        os.path.join(repository_root_path, bundle_cmd) if bundle_cmd.startswith("bin/") else shutil.which(bundle_cmd)
-                    )
-                    if bundle_full_path and os.path.exists(bundle_full_path):
-                        bundle_path = bundle_full_path if bundle_cmd.startswith("bin/") else bundle_cmd
-                        break
-
-            if not bundle_path:
-                raise RuntimeError(
-                    "Bundler project detected but 'bundle' command not found. Please install Bundler:\n"
-                    "  - gem install bundler\n"
-                    "  - Or use your Ruby version manager's bundler installation\n"
-                    "  - Ensure the bundle command is in your PATH"
-                )
-
-            # Check if solargraph is in Gemfile.lock
-            solargraph_in_bundle = False
-            if os.path.exists(gemfile_lock_path):
-                try:
-                    with open(gemfile_lock_path) as f:
-                        content = f.read()
-                        solargraph_in_bundle = "solargraph" in content.lower()
-                except Exception as e:
-                    logger.log(f"Warning: Could not read Gemfile.lock: {e}", logging.WARNING)
-
-            if solargraph_in_bundle:
-                logger.log("Found solargraph in Gemfile.lock", logging.INFO)
-                return f"{bundle_path} exec solargraph"
-            else:
-                logger.log(
-                    "solargraph not found in Gemfile.lock. Please add 'gem \"solargraph\"' to your Gemfile and run 'bundle install'",
-                    logging.WARNING,
-                )
-                # Fall through to global installation check
-
-        # Check if solargraph is installed globally
-        # First, try to find solargraph in PATH (includes asdf shims)
-        solargraph_path = shutil.which("solargraph")
-        if solargraph_path:
-            logger.log(f"Found solargraph at: {solargraph_path}", logging.INFO)
-            return solargraph_path
-
-        # Fallback to gem exec (for non-Bundler projects or when global solargraph not found)
-        if not is_bundler_project:
-            runtime_dependencies = [
-                {
-                    "url": "https://rubygems.org/downloads/solargraph-0.51.1.gem",
-                    "installCommand": "gem install solargraph -v 0.51.1",
-                    "binaryName": "solargraph",
-                    "archiveType": "gem",
-                }
-            ]
-
-            dependency = runtime_dependencies[0]
-            try:
-                result = subprocess.run(
-                    ["gem", "list", "^solargraph$", "-i"], check=False, capture_output=True, text=True, cwd=repository_root_path
-                )
-                if result.stdout.strip() == "false":
-                    logger.log("Installing Solargraph...", logging.INFO)
-                    subprocess.run(dependency["installCommand"].split(), check=True, capture_output=True, cwd=repository_root_path)
-
-                return "gem exec solargraph"
-            except subprocess.CalledProcessError as e:
-                error_msg = e.stderr.decode() if e.stderr else str(e)
-                raise RuntimeError(
-                    f"Failed to check or install Solargraph: {error_msg}\nPlease try installing manually: gem install solargraph"
-                ) from e
-        else:
-            raise RuntimeError(
-                "This appears to be a Bundler project, but solargraph is not available. "
-                "Please add 'gem \"solargraph\"' to your Gemfile and run 'bundle install'."
-            )
+        # Try to install ruby-lsp globally
+        logger.log("ruby-lsp not found, attempting to install...", logging.INFO)
+        try:
+            subprocess.run(["gem", "install", "ruby-lsp"], check=True, capture_output=True, cwd=repository_root_path)
+            logger.log("Successfully installed ruby-lsp", logging.INFO)
+            return "ruby-lsp"
+        except subprocess.CalledProcessError as e:
+            error_msg = e.stderr.decode() if e.stderr else str(e)
+            raise RuntimeError(f"Failed to install ruby-lsp: {error_msg}\n" "Please try installing manually: gem install ruby-lsp") from e
 
     @staticmethod
     def _detect_rails_project(repository_root_path: str) -> bool:
@@ -221,7 +153,7 @@ class Solargraph(SolidLanguageServer):
         Get Ruby and Rails-specific exclude patterns for better performance.
         """
         base_patterns = [
-            "**/vendor/**",  # Ruby vendor directory (similar to node_modules)
+            "**/vendor/**",  # Ruby vendor directory
             "**/.bundle/**",  # Bundler cache
             "**/tmp/**",  # Temporary files
             "**/log/**",  # Log files
@@ -234,7 +166,7 @@ class Solargraph(SolidLanguageServer):
         ]
 
         # Add Rails-specific patterns if this is a Rails project
-        if Solargraph._detect_rails_project(repository_root_path):
+        if RubyLsp._detect_rails_project(repository_root_path):
             rails_patterns = [
                 "**/public/packs/**",  # Webpacker output
                 "**/public/webpack/**",  # Webpack output
@@ -252,26 +184,59 @@ class Solargraph(SolidLanguageServer):
     @staticmethod
     def _get_initialize_params(repository_absolute_path: str) -> InitializeParams:
         """
-        Returns the initialize params for the Solargraph Language Server.
+        Returns the initialize params for the ruby-lsp Language Server.
         """
         root_uri = pathlib.Path(repository_absolute_path).as_uri()
-        exclude_patterns = Solargraph._get_ruby_exclude_patterns(repository_absolute_path)
+        exclude_patterns = RubyLsp._get_ruby_exclude_patterns(repository_absolute_path)
 
         initialize_params: InitializeParams = {  # type: ignore
             "processId": os.getpid(),
             "rootPath": repository_absolute_path,
             "rootUri": root_uri,
             "initializationOptions": {
-                "exclude": exclude_patterns,
+                "enabledFeatures": {
+                    "codeActions": True,
+                    "diagnostics": True,
+                    "documentHighlights": True,
+                    "documentLink": True,
+                    "documentSymbols": True,
+                    "foldingRanges": True,
+                    "formatting": True,
+                    "hover": True,
+                    "inlayHint": True,
+                    "onTypeFormatting": True,
+                    "selectionRanges": True,
+                    "semanticHighlighting": True,
+                    "completion": True,
+                    "definition": True,
+                    "workspaceSymbol": True,
+                    "signatureHelp": True,
+                },
+                "experimentalFeaturesEnabled": False,
+                "featuresConfiguration": {},
+                "indexing": {
+                    "includedPatterns": ["**/*.rb", "**/*.rake", "**/*.ru", "**/*.erb"],
+                    "excludedPatterns": exclude_patterns,
+                },
             },
             "capabilities": {
                 "workspace": {
                     "workspaceEdit": {"documentChanges": True},
+                    "configuration": True,
                 },
                 "textDocument": {
                     "documentSymbol": {
                         "hierarchicalDocumentSymbolSupport": True,
                         "symbolKind": {"valueSet": list(range(1, 27))},
+                    },
+                    "formatting": {"dynamicRegistration": True},
+                    "codeAction": {"dynamicRegistration": True},
+                    "semanticTokens": {"dynamicRegistration": True},
+                    "completion": {
+                        "completionItem": {
+                            "snippetSupport": True,
+                            "commitCharactersSupport": True,
+                        }
                     },
                 },
             },
@@ -287,21 +252,19 @@ class Solargraph(SolidLanguageServer):
 
     def _start_server(self):
         """
-        Starts the Solargraph Language Server for Ruby
+        Starts the ruby-lsp Language Server for Ruby
         """
 
         def register_capability_handler(params):
             assert "registrations" in params
             for registration in params["registrations"]:
-                if registration["method"] == "workspace/executeCommand":
-                    self.initialize_searcher_command_available.set()
-                    self.resolve_main_method_available.set()
+                self.logger.log(f"Registered capability: {registration['method']}", logging.INFO)
             return
 
         def lang_status_handler(params):
             self.logger.log(f"LSP: language/status: {params}", logging.INFO)
-            if params.get("type") == "ServiceReady" and params.get("message") == "Service is ready.":
-                self.logger.log("Solargraph service is ready.", logging.INFO)
+            if params.get("type") == "ready":
+                self.logger.log("ruby-lsp service is ready.", logging.INFO)
                 self.analysis_complete.set()
                 self.completions_available.set()
 
@@ -314,15 +277,23 @@ class Solargraph(SolidLanguageServer):
         def window_log_message(msg):
             self.logger.log(f"LSP: window/logMessage: {msg}", logging.INFO)
 
+        def progress_handler(params):
+            # ruby-lsp sends progress notifications during indexing
+            if "value" in params:
+                value = params["value"]
+                if value.get("kind") == "end":
+                    self.logger.log("ruby-lsp indexing complete", logging.INFO)
+                    self.analysis_complete.set()
+                    self.completions_available.set()
+
         self.server.on_request("client/registerCapability", register_capability_handler)
         self.server.on_notification("language/status", lang_status_handler)
         self.server.on_notification("window/logMessage", window_log_message)
         self.server.on_request("workspace/executeClientCommand", execute_client_command_handler)
-        self.server.on_notification("$/progress", do_nothing)
+        self.server.on_notification("$/progress", progress_handler)
         self.server.on_notification("textDocument/publishDiagnostics", do_nothing)
-        self.server.on_notification("language/actionableNotification", do_nothing)
 
-        self.logger.log("Starting solargraph server process", logging.INFO)
+        self.logger.log("Starting ruby-lsp server process", logging.INFO)
         self.server.start()
         initialize_params = self._get_initialize_params(self.repository_root_path)
 
@@ -333,21 +304,19 @@ class Solargraph(SolidLanguageServer):
         self.logger.log(f"Sending init params: {json.dumps(initialize_params, indent=4)}", logging.INFO)
         init_response = self.server.send.initialize(initialize_params)
         self.logger.log(f"Received init response: {init_response}", logging.INFO)
-        assert init_response["capabilities"]["textDocumentSync"] == 2
-        assert "completionProvider" in init_response["capabilities"]
-        assert init_response["capabilities"]["completionProvider"] == {
-            "resolveProvider": True,
-            "triggerCharacters": [".", ":", "@"],
-        }
-        self.server.notify.initialized({})
 
-        # Wait for Solargraph to complete its initial workspace analysis
-        # This prevents issues by ensuring background tasks finish
-        self.logger.log("Waiting for Solargraph to complete initial workspace analysis...", logging.INFO)
-        if self.analysis_complete.wait(timeout=60.0):
-            self.logger.log("Solargraph initial analysis complete, server ready", logging.INFO)
+        # Verify expected capabilities
+        assert init_response["capabilities"]["textDocumentSync"] in [1, 2]  # Full or Incremental
+        assert "completionProvider" in init_response["capabilities"]
+
+        self.server.notify.initialized({})
+        # Wait for ruby-lsp to complete its initial indexing
+        # ruby-lsp has fast indexing
+        self.logger.log("Waiting for ruby-lsp to complete initial indexing...", logging.INFO)
+        if self.analysis_complete.wait(timeout=15.0):
+            self.logger.log("ruby-lsp initial indexing complete, server ready", logging.INFO)
         else:
-            self.logger.log("Timeout waiting for Solargraph analysis completion, proceeding anyway", logging.WARNING)
-            # Fallback: assume analysis is complete after timeout
+            self.logger.log("Timeout waiting for ruby-lsp indexing completion, proceeding anyway", logging.WARNING)
+            # Fallback: assume indexing is complete after timeout
             self.analysis_complete.set()
             self.completions_available.set()
