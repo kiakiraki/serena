@@ -7,7 +7,7 @@ from solidlsp import SolidLanguageServer
 from solidlsp.ls_config import Language
 
 
-@pytest.mark.ruby_lsp
+@pytest.mark.ruby
 @pytest.mark.performance
 class TestRubyLspPerformance:
     """Performance-focused tests for ruby-lsp"""
@@ -54,7 +54,7 @@ class TestRubyLspPerformance:
             assert symbols is not None, f"Should return symbols for {file_path}"
 
     @pytest.mark.parametrize("language_server", [Language.RUBY_LSP], indirect=True)
-    @pytest.mark.parametrize("repo_path", [Language.RUBY_LSP], indirect=True)
+    @pytest.mark.parametrize("repo_path", [Language.RUBY], indirect=True)
     def test_definition_request_performance(self, language_server: SolidLanguageServer, repo_path: Path) -> None:
         """Test definition requests are fast"""
         start_time = time.time()

@@ -193,7 +193,7 @@ class SolidLanguageServer(ABC):
 
             ls = Gopls(config, logger, repository_root_path, solidlsp_settings=solidlsp_settings)
 
-        elif config.code_language == Language.RUBY or config.code_language == Language.RUBY_LSP:
+        elif config.code_language == Language.RUBY:
             from solidlsp.language_servers.ruby_lsp import RubyLsp
 
             ls = RubyLsp(config, logger, repository_root_path, solidlsp_settings=solidlsp_settings)

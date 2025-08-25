@@ -116,7 +116,7 @@ class RubyLsp(SolidLanguageServer):
             return "ruby-lsp"
         except subprocess.CalledProcessError as e:
             error_msg = e.stderr.decode() if e.stderr else str(e)
-            raise RuntimeError(f"Failed to install ruby-lsp: {error_msg}\n" "Please try installing manually: gem install ruby-lsp") from e
+            raise RuntimeError(f"Failed to install ruby-lsp: {error_msg}\nPlease try installing manually: gem install ruby-lsp") from e
 
     @staticmethod
     def _detect_rails_project(repository_root_path: str) -> bool:
@@ -250,34 +250,34 @@ class RubyLsp(SolidLanguageServer):
         }
         return initialize_params
 
-    def _start_server(self):
+    def _start_server(self) -> None:
         """
         Starts the ruby-lsp Language Server for Ruby
         """
 
-        def register_capability_handler(params):
+        def register_capability_handler(params: dict) -> None:
             assert "registrations" in params
             for registration in params["registrations"]:
                 self.logger.log(f"Registered capability: {registration['method']}", logging.INFO)
             return
 
-        def lang_status_handler(params):
+        def lang_status_handler(params: dict) -> None:
             self.logger.log(f"LSP: language/status: {params}", logging.INFO)
             if params.get("type") == "ready":
                 self.logger.log("ruby-lsp service is ready.", logging.INFO)
                 self.analysis_complete.set()
                 self.completions_available.set()
 
-        def execute_client_command_handler(params):
+        def execute_client_command_handler(params: dict) -> list:
             return []
 
-        def do_nothing(params):
+        def do_nothing(params: dict) -> None:
             return
 
-        def window_log_message(msg):
+        def window_log_message(msg: dict) -> None:
             self.logger.log(f"LSP: window/logMessage: {msg}", logging.INFO)
 
-        def progress_handler(params):
+        def progress_handler(params: dict) -> None:
             # ruby-lsp sends progress notifications during indexing
             if "value" in params:
                 value = params["value"]
