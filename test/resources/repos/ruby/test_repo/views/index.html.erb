@@ -1,0 +1,27 @@
+<html>
+<head>
+  <title><%= @title || "Default Title" %></title>
+</head>
+<body>
+  <h1>Welcome <%= @user&.name || "Guest" %></h1>
+  
+  <% if @products && @products.any? %>
+    <ul>
+      <% @products.each do |product| %>
+        <li>
+          <%= product.name %> - $<%= product.price %>
+          <% if product.expensive? %>
+            <span class="expensive">💰</span>
+          <% end %>
+        </li>
+      <% end %>
+    </ul>
+  <% else %>
+    <p>No products available.</p>
+  <% end %>
+
+  <footer>
+    <p>Total items: <%= @products&.count || 0 %></p>
+  </footer>
+</body>
+</html>

@@ -94,7 +94,7 @@ class Language(str, Enum):
             case self.GO:
                 return FilenameMatcher("*.go")
             case self.RUBY:
-                return FilenameMatcher("*.rb")
+                return FilenameMatcher("*.rb", "*.erb")
             case self.CPP:
                 return FilenameMatcher("*.cpp", "*.h", "*.hpp", "*.c", "*.hxx", "*.cc", "*.cxx")
             case self.KOTLIN:

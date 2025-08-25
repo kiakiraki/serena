@@ -194,9 +194,9 @@ class SolidLanguageServer(ABC):
             ls = Gopls(config, logger, repository_root_path, solidlsp_settings=solidlsp_settings)
 
         elif config.code_language == Language.RUBY:
-            from solidlsp.language_servers.solargraph import Solargraph
+            from solidlsp.language_servers.ruby_lsp import RubyLsp
 
-            ls = Solargraph(config, logger, repository_root_path, solidlsp_settings=solidlsp_settings)
+            ls = RubyLsp(config, logger, repository_root_path, solidlsp_settings=solidlsp_settings)
 
         elif config.code_language == Language.DART:
             from solidlsp.language_servers.dart_language_server import DartLanguageServer
@@ -665,12 +665,7 @@ class SolidLanguageServer(ABC):
                     new_item["absolutePath"] = PathUtils.uri_to_path(new_item["uri"])
                     new_item["relativePath"] = PathUtils.get_relative_path(new_item["absolutePath"], self.repository_root_path)
                     ret.append(ls_types.Location(new_item))
-                elif (
-                    LSPConstants.ORIGIN_SELECTION_RANGE in item
-                    and LSPConstants.TARGET_URI in item
-                    and LSPConstants.TARGET_RANGE in item
-                    and LSPConstants.TARGET_SELECTION_RANGE in item
-                ):
+                elif LSPConstants.TARGET_URI in item and LSPConstants.TARGET_RANGE in item and LSPConstants.TARGET_SELECTION_RANGE in item:
                     new_item: ls_types.Location = {}
                     new_item["uri"] = item[LSPConstants.TARGET_URI]
                     new_item["absolutePath"] = PathUtils.uri_to_path(new_item["uri"])
