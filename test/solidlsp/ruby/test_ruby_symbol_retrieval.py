@@ -8,8 +8,6 @@ These tests focus on the following methods:
 - request_document_symbols integration
 """
 
-import os
-
 import pytest
 
 from solidlsp import SolidLanguageServer
@@ -282,9 +280,7 @@ class TestRubyLanguageServerSymbols:
             # Check for expected symbols
             symbol_names = []
             for symbol in calculator_symbols:
-                if hasattr(symbol, 'get'):
-                    symbol_names.append(symbol.get("name"))
-                elif isinstance(symbol, dict):
+                if hasattr(symbol, "get") or isinstance(symbol, dict):
                     symbol_names.append(symbol.get("name"))
 
             expected_symbols = ["Calculator", "MathUtils"]
@@ -304,9 +300,7 @@ class TestRubyLanguageServerSymbols:
         # Look for expected symbols from the file
         symbol_names = set()
         for s_info in overview:
-            if hasattr(s_info, 'get'):
-                symbol_names.add(s_info.get("name"))
-            elif isinstance(s_info, dict):
+            if hasattr(s_info, "get") or isinstance(s_info, dict):
                 symbol_names.add(s_info.get("name"))
 
         # We should find our DemoClass
