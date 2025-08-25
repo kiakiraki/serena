@@ -13,12 +13,12 @@ import threading
 
 from typing_extensions import override
 
-from solidlsp.language_servers.solid_language_server import SolidLanguageServer
+from solidlsp.ls import SolidLanguageServer
 from solidlsp.ls_config import LanguageServerConfig
-from solidlsp.ls_protocol_types import InitializeParams
-from solidlsp.process_launcher import ProcessLaunchInfo
+from solidlsp.ls_logger import LanguageServerLogger
+from solidlsp.lsp_protocol_handler.lsp_types import InitializeParams
+from solidlsp.lsp_protocol_handler.server import ProcessLaunchInfo
 from solidlsp.settings import SolidLSPSettings
-from solidlsp.utils import LanguageServerLogger
 
 
 class RubyLsp(SolidLanguageServer):

@@ -12,7 +12,7 @@ from solidlsp.ls_config import Language
 class TestRubyLspPerformance:
     """Performance-focused tests for ruby-lsp"""
 
-    @pytest.mark.parametrize("language_server", [Language.RUBY_LSP], indirect=True)
+    @pytest.mark.parametrize("language_server", [Language.RUBY], indirect=True)
     def test_initialization_speed(self, language_server: SolidLanguageServer) -> None:
         """Test initialization speed is reasonable"""
         start_time = time.time()
@@ -26,7 +26,7 @@ class TestRubyLspPerformance:
         assert init_duration < 15.0, f"Initialization took {init_duration:.2f}s, expected < 15s"
         assert len(symbols) > 0, "Should discover symbols during initialization"
 
-    @pytest.mark.parametrize("language_server", [Language.RUBY_LSP], indirect=True)
+    @pytest.mark.parametrize("language_server", [Language.RUBY], indirect=True)
     def test_symbol_request_performance(self, language_server: SolidLanguageServer) -> None:
         """Test symbol requests are fast after initialization"""
         # Ensure initialization is complete
@@ -40,7 +40,7 @@ class TestRubyLspPerformance:
         assert duration < 5.0, f"Symbol request took {duration:.2f}s, expected < 5s"
         assert len(symbols) > 0, "Should return symbols quickly"
 
-    @pytest.mark.parametrize("language_server", [Language.RUBY_LSP], indirect=True)
+    @pytest.mark.parametrize("language_server", [Language.RUBY], indirect=True)
     def test_document_symbols_performance(self, language_server: SolidLanguageServer) -> None:
         """Test document symbol requests are fast"""
         files_to_test = ["main.rb", "lib/calculator.rb", "lib/models.rb"]
@@ -53,7 +53,7 @@ class TestRubyLspPerformance:
             assert duration < 2.0, f"Document symbols for {file_path} took {duration:.2f}s, expected < 2s"
             assert symbols is not None, f"Should return symbols for {file_path}"
 
-    @pytest.mark.parametrize("language_server", [Language.RUBY_LSP], indirect=True)
+    @pytest.mark.parametrize("language_server", [Language.RUBY], indirect=True)
     @pytest.mark.parametrize("repo_path", [Language.RUBY], indirect=True)
     def test_definition_request_performance(self, language_server: SolidLanguageServer, repo_path: Path) -> None:
         """Test definition requests are fast"""
@@ -67,7 +67,7 @@ class TestRubyLspPerformance:
         assert duration < 3.0, f"Definition request took {duration:.2f}s, expected < 3s"
         assert len(definitions) >= 0, "Should return definition results"
 
-    @pytest.mark.parametrize("language_server", [Language.RUBY_LSP], indirect=True)
+    @pytest.mark.parametrize("language_server", [Language.RUBY], indirect=True)
     def test_multiple_file_indexing_speed(self, language_server: SolidLanguageServer) -> None:
         """Test that indexing multiple files is reasonably fast"""
         start_time = time.time()

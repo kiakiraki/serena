@@ -27,11 +27,7 @@ class LanguageParamRequest:
 
 
 def get_repo_path(language: Language) -> Path:
-    # Map Language.RUBY to ruby_lsp test repository
-    if language == Language.RUBY:
-        return Path(__file__).parent / "resources" / "repos" / "ruby_lsp" / "test_repo"
-    else:
-        return Path(__file__).parent / "resources" / "repos" / language / "test_repo"
+    return Path(__file__).parent / "resources" / "repos" / language / "test_repo"
 
 
 def create_ls(
