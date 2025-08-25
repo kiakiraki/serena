@@ -194,24 +194,7 @@ class RubyLsp(SolidLanguageServer):
             "rootPath": repository_absolute_path,
             "rootUri": root_uri,
             "initializationOptions": {
-                "enabledFeatures": {
-                    "codeActions": True,
-                    "diagnostics": True,
-                    "documentHighlights": True,
-                    "documentLink": True,
-                    "documentSymbols": True,
-                    "foldingRanges": True,
-                    "formatting": True,
-                    "hover": True,
-                    "inlayHint": True,
-                    "onTypeFormatting": True,
-                    "selectionRanges": True,
-                    "semanticHighlighting": True,
-                    "completion": True,
-                    "definition": True,
-                    "workspaceSymbol": True,
-                    "signatureHelp": True,
-                },
+                # ruby-lsp enables all features by default, so we don't need to specify enabledFeatures
                 "experimentalFeaturesEnabled": False,
                 "featuresConfiguration": {},
                 "indexing": {
