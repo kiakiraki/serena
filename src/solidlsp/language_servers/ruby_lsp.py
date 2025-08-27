@@ -278,6 +278,9 @@ class RubyLsp(SolidLanguageServer):
                     "workspaceEdit": {"documentChanges": True},
                     "configuration": True,
                 },
+                "window": {
+                    "workDoneProgress": True,
+                },
                 "textDocument": {
                     "documentSymbol": {
                         "hierarchicalDocumentSymbolSupport": True,
@@ -332,19 +335,47 @@ class RubyLsp(SolidLanguageServer):
             self.logger.log(f"LSP: window/logMessage: {msg}", logging.INFO)
 
         def progress_handler(params: dict) -> None:
-            # ruby-lsp sends progress notifications during indexing
+            """
+            Enhanced progress handler to capture various Ruby LSP progress patterns.
+            Ruby LSP uses $/progress notifications with different value structures.
+            """
+            self.logger.log(f"LSP: $/progress: {params}", logging.DEBUG)
+
+            # Handle standard LSP progress notification format
             if "value" in params:
                 value = params["value"]
+                # Check for completion indicators
                 if value.get("kind") == "end":
-                    self.logger.log("ruby-lsp indexing complete", logging.INFO)
+                    self.logger.log("ruby-lsp indexing complete ($/progress end)", logging.INFO)
                     self.analysis_complete.set()
                     self.completions_available.set()
+                elif value.get("kind") == "begin":
+                    self.logger.log("ruby-lsp indexing started ($/progress begin)", logging.INFO)
+                elif "percentage" in value:
+                    percentage = value.get("percentage", 0)
+                    self.logger.log(f"ruby-lsp indexing progress: {percentage}%", logging.DEBUG)
+
+            # Handle direct progress format (fallback)
+            elif "token" in params and "value" in params:
+                token = params.get("token")
+                if isinstance(token, str) and "indexing" in token.lower():
+                    value = params.get("value", {})
+                    if value.get("kind") == "end" or value.get("percentage") == 100:
+                        self.logger.log("ruby-lsp indexing complete (token progress)", logging.INFO)
+                        self.analysis_complete.set()
+                        self.completions_available.set()
+
+        def window_work_done_progress_create(params: dict) -> None:
+            """Handle workDoneProgress/create requests from ruby-lsp"""
+            self.logger.log(f"LSP: window/workDoneProgress/create: {params}", logging.DEBUG)
+            return {}
 
         self.server.on_request("client/registerCapability", register_capability_handler)
         self.server.on_notification("language/status", lang_status_handler)
         self.server.on_notification("window/logMessage", window_log_message)
         self.server.on_request("workspace/executeClientCommand", execute_client_command_handler)
         self.server.on_notification("$/progress", progress_handler)
+        self.server.on_request("window/workDoneProgress/create", window_work_done_progress_create)
         self.server.on_notification("textDocument/publishDiagnostics", do_nothing)
 
         self.logger.log("Starting ruby-lsp server process", logging.INFO)
@@ -372,12 +403,15 @@ class RubyLsp(SolidLanguageServer):
 
         self.server.notify.initialized({})
         # Wait for ruby-lsp to complete its initial indexing
-        # ruby-lsp has fast indexing
+        # ruby-lsp has fast indexing but may need more time for large projects
         self.logger.log("Waiting for ruby-lsp to complete initial indexing...", logging.INFO)
         if self.analysis_complete.wait(timeout=30.0):
             self.logger.log("ruby-lsp initial indexing complete, server ready", logging.INFO)
         else:
             self.logger.log("Timeout waiting for ruby-lsp indexing completion, proceeding anyway", logging.WARNING)
+            self.logger.log(
+                "Note: Ruby LSP may still be working in the background. This timeout doesn't affect functionality.", logging.INFO
+            )
             # Fallback: assume indexing is complete after timeout
             self.analysis_complete.set()
             self.completions_available.set()

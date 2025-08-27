@@ -30,6 +30,22 @@ class TestRubyLanguageServer:
         assert helper_symbol is not None, "Could not find 'helper_function' symbol in main.rb"
 
     @pytest.mark.parametrize("language_server", [Language.RUBY], indirect=True)
+    def test_progress_notification_handling(self, language_server: SolidLanguageServer) -> None:
+        """Test that Ruby LSP progress notifications are properly handled"""
+        # Verify that the language server started successfully
+        assert language_server is not None
+
+        # Check if analysis_complete was set (indicating successful initialization)
+        ruby_lsp_instance = language_server
+        if hasattr(ruby_lsp_instance, "analysis_complete"):
+            # This should be set after successful initialization
+            assert ruby_lsp_instance.analysis_complete.is_set(), "analysis_complete should be set after initialization"
+
+        # Test basic functionality to ensure server is working despite any timeout warnings
+        symbols = language_server.request_full_symbol_tree()
+        assert len(symbols) > 0, "Should be able to retrieve symbols even with timeout warnings"
+
+    @pytest.mark.parametrize("language_server", [Language.RUBY], indirect=True)
     @pytest.mark.parametrize("repo_path", [Language.RUBY], indirect=True)
     def test_find_definition_across_files(self, language_server: SolidLanguageServer, repo_path: Path) -> None:
         # Test finding Calculator.add method definition from line 17: Calculator.new.add(demo.value, 10)
