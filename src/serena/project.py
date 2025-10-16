@@ -105,6 +105,12 @@ class Project:
 
         :return: whether the path should be ignored
         """
+        # special case, never ignore the project root itself
+        # If the user ignores hidden files, "." might match against the corresponding PathSpec pattern.
+        # The empty string also points to the project root and should never be ignored.
+        if str(relative_path) in [".", ""]:
+            return False
+
         abs_path = os.path.join(self.project_root, relative_path)
         if not os.path.exists(abs_path):
             raise FileNotFoundError(f"File {abs_path} not found, the ignore check cannot be performed")
@@ -170,18 +176,22 @@ class Project:
         abs_path = Path(self.project_root) / relative_path
         return abs_path.exists()
 
-    def validate_relative_path(self, relative_path: str) -> None:
+    def validate_relative_path(self, relative_path: str, require_not_ignored: bool = False) -> None:
         """
         Validates that the given relative path to an existing file/dir is safe to read or edit,
-        meaning it's inside the project directory and is not ignored by git.
+        meaning it's inside the project directory.
 
         Passing a path to a non-existing file will lead to a `FileNotFoundError`.
+
+        :param relative_path: the path to validate, relative to the project root
+        :param require_not_ignored: if True, the path must not be ignored according to the project's ignore settings
         """
         if not self.is_path_in_project(relative_path):
             raise ValueError(f"{relative_path=} points to path outside of the repository root; cannot access for safety reasons")
 
-        if self.is_ignored_path(relative_path):
-            raise ValueError(f"Path {relative_path} is ignored; cannot access for safety reasons")
+        if require_not_ignored:
+            if self.is_ignored_path(relative_path):
+                raise ValueError(f"Path {relative_path} is ignored; cannot access for safety reasons")
 
     def gather_source_files(self, relative_path: str = "") -> list[str]:
         """Retrieves relative paths of all source files, optionally limited to the given path
@@ -245,6 +255,7 @@ class Project:
             relative_file_paths,
             pattern,
             root_path=self.project_root,
+            file_reader=self.read_file,
             context_lines_before=context_lines_before,
             context_lines_after=context_lines_after,
             paths_include_glob=paths_include_glob,
@@ -297,6 +308,7 @@ class Project:
             code_language=self.language,
             ignored_paths=self._ignored_patterns,
             trace_lsp_communication=trace_lsp_communication,
+            encoding=self.project_config.encoding,
         )
         ls_logger = LanguageServerLogger(log_level=log_level)
 
