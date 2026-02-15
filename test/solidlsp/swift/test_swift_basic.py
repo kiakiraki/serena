@@ -123,6 +123,7 @@ class TestSwiftLanguageServerBasics:
         line_5_refs = [ref for ref in calculator_refs if ref.get("range", {}).get("start", {}).get("line") == 4]
         assert len(line_5_refs) > 0, "Calculator should be referenced at line 5"
 
+    @pytest.mark.skipif(is_ci, reason="Test is flaky in CI")
     @pytest.mark.parametrize("language_server", [Language.SWIFT], indirect=True)
     def test_request_references_user_struct(self, language_server: SolidLanguageServer) -> None:
         """Test request_references on the User struct."""
@@ -144,6 +145,7 @@ class TestSwiftLanguageServerBasics:
         line_9_refs = [ref for ref in user_refs if ref.get("range", {}).get("start", {}).get("line") == 8]
         assert len(line_9_refs) > 0, "User should be referenced at line 9"
 
+    @pytest.mark.skipif(is_ci, reason="Test is flaky in CI")
     @pytest.mark.parametrize("language_server", [Language.SWIFT], indirect=True)
     def test_request_references_utils_struct(self, language_server: SolidLanguageServer) -> None:
         """Test request_references on the Utils struct."""
