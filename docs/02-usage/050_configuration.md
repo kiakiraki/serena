@@ -14,7 +14,8 @@ Serena is configured in using a multi-layered approach:
  * **contexts and modes** for composable configuration, which can be enabled on a case-by-case basis (see below)
  * **command-line parameters** passed to the `start-mcp-server` server command (overriding/extending configured settings)  
    See [MCP Server Command-Line Arguments](mcp-args) for further information.  
-   
+
+(global-config)=
 ## Global Configuration
 
 The global configuration file allows you to change general settings and defaults that will apply to all projects unless overridden.
