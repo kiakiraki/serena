@@ -536,6 +536,7 @@ class CSharpLanguageServer(SolidLanguageServer):
                     ]
 
                 # Run the install script
+                log.info("Running .NET install script: %s", cmd)
                 result = subprocess.run(cmd, capture_output=True, text=True, check=True)
                 log.debug(f"Install script output: {result.stdout}")
 
@@ -550,7 +551,12 @@ class CSharpLanguageServer(SolidLanguageServer):
                     f"Failed to install .NET {version} runtime using install script: {e.stderr if e.stderr else e}"
                 ) from e
             except Exception as e:
-                raise SolidLSPException(f"Failed to install .NET {version} runtime: {e}") from e
+                message = f"Failed to install .NET {version} runtime: {e}"
+                if is_windows and isinstance(e, FileNotFoundError):
+                    message += (
+                        "; pwsh, i.e. PowerShell 7+, is required to install .NET runtime. Make sure pwsh is available on your system."
+                    )
+                raise SolidLSPException(message) from e
 
     def _get_initialize_params(self) -> InitializeParams:
         """
