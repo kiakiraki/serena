@@ -49,7 +49,7 @@ class PluginServerError(SerenaClientError):
         unrecoverable_error_prefix = (
             "The request failed due to an error on the Serena JetBrains plugin side. This may be caused "
             "by a bug or an incompatibility in the plugin. In that case, please report the error below together with "
-            "your setup (IDE + version, Serena plugin version) at https://github.com/oraios/serena/issues "
+            "your setup (IDE + version, Serena plugin version, programming language) at https://github.com/oraios/serena/issues "
             "(if you are an LLM, tell the user about this). The Oraios team will then provide support on this.\n"
         )
         super().__init__(unrecoverable_error_prefix + message)
