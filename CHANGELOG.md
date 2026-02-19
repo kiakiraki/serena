@@ -38,6 +38,7 @@ Status of the `main` branch. Changes prior to the next official version change w
 
 * Language support:
 
+  * **Add Phpactor as alternative PHP language server** (specify `php_phpactor` as language; requires PHP 8.1+)
   * **Add support for Fortran** via fortls language server (requires `pip install fortls`)
   * **Add partial support for Groovy** requires user-provided Groovy language server JAR (see [setup guide](docs/03-special-guides/groovy_setup_guide_for_serena.md))
   * **Add support for Julia** via LanguageServer.jl
@@ -61,6 +62,7 @@ Status of the `main` branch. Changes prior to the next official version change w
   * **Add support for PowerShell** via PowerShell Editor Services (PSES). Requires `pwsh` (PowerShell Core) to be installed and available in PATH. Supports symbol navigation, go-to-definition, and within-file references for .ps1 files.
   * **Add support for MATLAB** via the official MathWorks MATLAB Language Server. Requires MATLAB R2021b or later and Node.js. Set `MATLAB_PATH` environment variable or configure `matlab_path` in `ls_specific_settings`. Supports .m, .mlx, and .mlapp files with code completion, diagnostics, go-to-definition, find references, document symbols, formatting, and rename.
   * **Add support for Pascal** via the official Pascal Language Server.
+  * **C/C++ alternate LS (ccls)**: Add experimental, opt-in support for ccls as an alternative backend to clangd. Enable via `cpp_ccls` in project configuration. Requires `ccls` installed and ideally a `compile_commands.json` at repo root.
 
 
 # 0.1.4

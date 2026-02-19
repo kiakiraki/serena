@@ -8,7 +8,7 @@ import shutil
 from collections.abc import Iterator, Sequence
 from copy import deepcopy
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import UTC, datetime
 from enum import Enum
 from functools import cached_property
 from pathlib import Path
@@ -415,12 +415,18 @@ class ProjectConfig(ToolInclusionDefinition, ModeSelectionDefinition, ToStringMi
 
 
 class RegisteredProject(ToStringMixin):
-    def __init__(self, project_root: str, project_config: "ProjectConfig", project_instance: Optional["Project"] = None) -> None:
+    def __init__(
+        self,
+        project_root: str,
+        project_config: "ProjectConfig",
+        project_instance: Optional["Project"] = None,
+    ) -> None:
         """
         Represents a registered project in the Serena configuration.
 
         :param project_root: the root directory of the project
         :param project_config: the configuration of the project
+        :param project_instance: an existing project instance (if already loaded)
         """
         self.project_root = Path(project_root).resolve()
         self.project_config = project_config
@@ -456,9 +462,9 @@ class RegisteredProject(ToStringMixin):
         :param path: the path to check
         :return: True if the path matches the project root, False otherwise
         """
-        return self.project_root == Path(path).resolve()
+        return self.project_root.samefile(Path(path).resolve())
 
-    def get_project_instance(self) -> "Project":
+    def get_project_instance(self, serena_config: "SerenaConfig | None") -> "Project":
         """
         Returns the project instance for this registered project, loading it if necessary.
         """
@@ -466,7 +472,11 @@ class RegisteredProject(ToStringMixin):
             from ..project import Project
 
             with LogTime(f"Loading project instance for {self}", logger=log):
-                self._project_instance = Project(project_root=str(self.project_root), project_config=self.project_config)
+                self._project_instance = Project(
+                    project_root=str(self.project_root),
+                    project_config=self.project_config,
+                    serena_config=serena_config,
+                )
         return self._project_instance
 
 
@@ -511,6 +521,10 @@ class SerenaConfig(ToolInclusionDefinition, ModeSelectionDefinition, ToStringMix
     ls_specific_settings: dict = field(default_factory=dict)
     """Advanced configuration option allowing to configure language server implementation specific options, see SolidLSPSettings for more info."""
 
+    ignored_paths: list[str] = field(default_factory=list)
+    """List of paths to ignore across all projects. Same syntax as gitignore, so you can use * and **.
+    These patterns are merged additively with each project's own ignored_paths."""
+
     hover_budget: float = 10.0
     """
     Time budget (seconds) for LSP hover requests when tools request include_info.
@@ -537,6 +551,19 @@ class SerenaConfig(ToolInclusionDefinition, ModeSelectionDefinition, ToStringMix
     CONFIG_FIELDS_WITH_TYPE_CONVERSION = {"projects", "language_backend"}
 
     # *** methods ***
+    @classmethod
+    def get_config_file_creation_date(cls) -> datetime | None:
+        """
+        :return: the creation date of the configuration file, or None if the configuration file does not exist
+        """
+        config_file_path = cls._determine_config_file_path()
+        if not os.path.exists(config_file_path):
+            return None
+
+        # for unix systems st_ctime is the inode change time (change of metadata),
+        # which is good enough for our purposes
+        creation_timestamp = os.stat(config_file_path).st_ctime
+        return datetime.fromtimestamp(creation_timestamp, UTC)
 
     @property
     def config_file_path(self) -> str | None:
@@ -737,7 +764,7 @@ class SerenaConfig(ToolInclusionDefinition, ModeSelectionDefinition, ToStringMix
         if registered_project is None:
             return None
         else:
-            return registered_project.get_project_instance()
+            return registered_project.get_project_instance(serena_config=self)
 
     def add_registered_project(self, registered_project: RegisteredProject) -> None:
         """
@@ -771,7 +798,12 @@ class SerenaConfig(ToolInclusionDefinition, ModeSelectionDefinition, ToStringMix
 
         project_config = ProjectConfig.load(project_root, autogenerate=True)
 
-        new_project = Project(project_root=str(project_root), project_config=project_config, is_newly_created=True)
+        new_project = Project(
+            project_root=str(project_root),
+            project_config=project_config,
+            is_newly_created=True,
+            serena_config=self,
+        )
         self.add_registered_project(RegisteredProject.from_project_instance(new_project))
 
         return new_project

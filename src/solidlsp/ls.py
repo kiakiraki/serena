@@ -18,13 +18,14 @@ from typing import Self, Union, cast
 
 import pathspec
 from sensai.util.pickle import getstate, load_pickle
+from sensai.util.string import ToStringMixin
 
 from serena.text_utils import MatchedConsecutiveLines
 from serena.util.file_system import match_path
 from solidlsp import ls_types
 from solidlsp.ls_config import Language, LanguageServerConfig
 from solidlsp.ls_exceptions import SolidLSPException
-from solidlsp.ls_handler import SolidLanguageServerHandler
+from solidlsp.ls_process import LanguageServerProcess
 from solidlsp.ls_types import UnifiedSymbolInformation
 from solidlsp.ls_utils import FileUtils, PathUtils, TextUtils
 from solidlsp.lsp_protocol_handler import lsp_types
@@ -67,14 +68,90 @@ class LSPFileBuffer:
     This class is used to store the contents of an open LSP file in memory.
     """
 
-    def __init__(self, uri: str, contents: str, encoding: str, version: int, language_id: str, ref_count: int) -> None:
+    def __init__(
+        self,
+        abs_path: Path,
+        uri: str,
+        encoding: str,
+        version: int,
+        language_id: str,
+        ref_count: int,
+        language_server: "SolidLanguageServer",
+        open_in_ls: bool = True,
+    ) -> None:
+        self.abs_path = abs_path
+        self.language_server = language_server
         self.uri = uri
-        self.contents = contents
+        self._read_file_modified_date: float | None = None
+        self._contents: str | None = None
         self.version = version
         self.language_id = language_id
         self.ref_count = ref_count
         self.encoding = encoding
         self._content_hash: str | None = None
+        self._is_open_in_ls = False
+        if open_in_ls:
+            self._open_in_ls()
+
+    def _open_in_ls(self) -> None:
+        """
+        Open the file in the language server if it is not already open.
+        """
+        if self._is_open_in_ls:
+            return
+        self._is_open_in_ls = True
+        self.language_server.server.notify.did_open_text_document(
+            {
+                LSPConstants.TEXT_DOCUMENT: {  # type: ignore
+                    LSPConstants.URI: self.uri,
+                    LSPConstants.LANGUAGE_ID: self.language_id,
+                    LSPConstants.VERSION: 0,
+                    LSPConstants.TEXT: self.contents,
+                }
+            }
+        )
+
+    def close(self) -> None:
+        if self._is_open_in_ls:
+            self.language_server.server.notify.did_close_text_document(
+                {
+                    LSPConstants.TEXT_DOCUMENT: {  # type: ignore
+                        LSPConstants.URI: self.uri,
+                    }
+                }
+            )
+
+    def ensure_open_in_ls(self) -> None:
+        """Ensure that the file is opened in the language server."""
+        self._open_in_ls()
+
+    @property
+    def contents(self) -> str:
+        file_modified_date = self.abs_path.stat().st_mtime
+
+        # if contents are cached, check if they are stale (file modification since last read) and invalidate if so
+        if self._contents is not None:
+            assert self._read_file_modified_date is not None
+            if file_modified_date > self._read_file_modified_date:
+                self._contents = None
+
+        if self._contents is None:
+            self._read_file_modified_date = file_modified_date
+            self._contents = FileUtils.read_file(str(self.abs_path), self.encoding)
+            self._content_hash = None
+
+        return self._contents
+
+    @contents.setter
+    def contents(self, new_contents: str) -> None:
+        """
+        Sets new contents for the file buffer (in-memory change only).
+        Persistence of the change to disk must be handled separately.
+
+        :param new_contents: the new contents to set
+        """
+        self._contents = new_contents
+        self._content_hash = None
 
     @property
     def content_hash(self) -> str:
@@ -87,7 +164,7 @@ class LSPFileBuffer:
         return self.contents.split("\n")
 
 
-class SymbolBody:
+class SymbolBody(ToStringMixin):
     """
     Representation of the body of a symbol, which allows the extraction of the symbol's text
     from the lines of the file it is defined in.
@@ -104,14 +181,21 @@ class SymbolBody:
         self._end_line = end_line
         self._end_col = end_col
 
+    def _tostring_excludes(self) -> list[str]:
+        return ["_lines"]
+
     def get_text(self) -> str:
         # extract relevant lines
         symbol_body = "\n".join(self._lines[self._start_line : self._end_line + 1])
 
-        # remove leading indentation
+        # remove leading content from the first line
         symbol_body = symbol_body[self._start_col :]
 
-        # TODO: handle end_col properly (this was never implemented)
+        # remove trailing content from the last line
+        last_line = self._lines[self._end_line]
+        trailing_length = len(last_line) - self._end_col
+        if trailing_length > 0:
+            symbol_body = symbol_body[: -(len(last_line) - self._end_col)]
 
         return symbol_body
 
@@ -190,13 +274,12 @@ class LanguageServerDependencyProvider(ABC):
         self._ls_resources_dir = ls_resources_dir
 
     @abstractmethod
-    def create_launch_command(self) -> list[str] | str:
+    def create_launch_command(self) -> list[str]:
         """
         Creates the launch command for this language server, potentially downloading and installing dependencies
         beforehand.
 
-        :return: the launch command as a list containing the executable and its arguments (preferred for robustness)
-           or the entire command in a single string.
+        :return: the launch command as a list containing the executable and its arguments
         """
 
     def create_launch_command_env(self) -> dict[str, str]:
@@ -228,7 +311,7 @@ class LanguageServerDependencyProviderSinglePath(LanguageServerDependencyProvide
         :return: the core dependency's path (e.g. executable, jar, etc.)
         """
 
-    def create_launch_command(self) -> Union[str, list[str]]:
+    def create_launch_command(self) -> list[str]:
         path = self._custom_settings.get("ls_path", None)
         if path is not None:
             core_path = path
@@ -237,11 +320,10 @@ class LanguageServerDependencyProviderSinglePath(LanguageServerDependencyProvide
         return self._create_launch_command(core_path)
 
     @abstractmethod
-    def _create_launch_command(self, core_path: str) -> list[str] | str:
+    def _create_launch_command(self, core_path: str) -> list[str]:
         """
         :param core_path: path to the core dependency
-        :return: the launch command as a list containing the executable and its arguments (preferred for robustness)
-           or the entire command in a single string.
+        :return: the launch command as a list containing the executable and its arguments
         """
 
 
@@ -412,7 +494,6 @@ class SolidLanguageServer(ABC):
         self._load_document_symbols_cache()
 
         self.server_started = False
-        self.completions_available = threading.Event()
         if config.trace_lsp_communication:
 
             def logging_fn(source: str, target: str, msg: StringDict | str) -> None:
@@ -428,7 +509,7 @@ class SolidLanguageServer(ABC):
             self._dependency_provider = self._create_dependency_provider()
             process_launch_info = self._create_process_launch_info()
         log.debug(f"Creating language server instance with {language_id=} and process launch info: {process_launch_info}")
-        self.server = SolidLanguageServerHandler(
+        self.server = LanguageServerProcess(
             process_launch_info,
             language=self.language,
             determine_log_level=self._determine_log_level,
@@ -614,70 +695,72 @@ class SolidLanguageServer(ABC):
         return self.language_id
 
     @contextmanager
-    def open_file(self, relative_file_path: str) -> Iterator[LSPFileBuffer]:
+    def open_file(self, relative_file_path: str, open_in_ls: bool = True) -> Iterator[LSPFileBuffer]:
         """
         Open a file in the Language Server. This is required before making any requests to the Language Server.
 
         :param relative_file_path: The relative path of the file to open.
+        :param open_in_ls: whether to open the file in the language server, sending the didOpen notification.
+            Set this to False to read the local file buffer without notifying the LS; the file can
+            be opened in the LS later by calling the `ensure_open_in_ls` method on the returned LSPFileBuffer.
         """
         if not self.server_started:
             log.error("open_file called before Language Server started")
             raise SolidLSPException("Language Server not started")
 
-        absolute_file_path = str(PurePath(self.repository_root_path, relative_file_path))
-        uri = pathlib.Path(absolute_file_path).as_uri()
+        absolute_file_path = Path(self.repository_root_path, relative_file_path)
+        uri = absolute_file_path.as_uri()
 
         if uri in self.open_file_buffers:
-            assert self.open_file_buffers[uri].uri == uri
-            assert self.open_file_buffers[uri].ref_count >= 1
+            fb = self.open_file_buffers[uri]
+            assert fb.uri == uri
+            assert fb.ref_count >= 1
 
-            self.open_file_buffers[uri].ref_count += 1
-            yield self.open_file_buffers[uri]
-            self.open_file_buffers[uri].ref_count -= 1
+            fb.ref_count += 1
+            if open_in_ls:
+                fb.ensure_open_in_ls()
+            yield fb
+            fb.ref_count -= 1
         else:
-            contents = FileUtils.read_file(absolute_file_path, self._encoding)
-
             version = 0
             language_id = self._get_language_id_for_file(relative_file_path)
-            self.open_file_buffers[uri] = LSPFileBuffer(
-                uri=uri, contents=contents, encoding=self._encoding, version=version, language_id=language_id, ref_count=1
+            fb = LSPFileBuffer(
+                abs_path=absolute_file_path,
+                uri=uri,
+                encoding=self._encoding,
+                version=version,
+                language_id=language_id,
+                ref_count=1,
+                language_server=self,
+                open_in_ls=open_in_ls,
             )
-
-            self.server.notify.did_open_text_document(
-                {
-                    LSPConstants.TEXT_DOCUMENT: {  # type: ignore
-                        LSPConstants.URI: uri,
-                        LSPConstants.LANGUAGE_ID: language_id,
-                        LSPConstants.VERSION: 0,
-                        LSPConstants.TEXT: contents,
-                    }
-                }
-            )
-            yield self.open_file_buffers[uri]
-            self.open_file_buffers[uri].ref_count -= 1
+            self.open_file_buffers[uri] = fb
+            yield fb
+            fb.ref_count -= 1
 
         if self.open_file_buffers[uri].ref_count == 0:
-            self.server.notify.did_close_text_document(
-                {
-                    LSPConstants.TEXT_DOCUMENT: {  # type: ignore
-                        LSPConstants.URI: uri,
-                    }
-                }
-            )
+            self.open_file_buffers[uri].close()
             del self.open_file_buffers[uri]
 
     @contextmanager
-    def _open_file_context(self, relative_file_path: str, file_buffer: LSPFileBuffer | None = None) -> Iterator[LSPFileBuffer]:
+    def _open_file_context(
+        self, relative_file_path: str, file_buffer: LSPFileBuffer | None = None, open_in_ls: bool = True
+    ) -> Iterator[LSPFileBuffer]:
         """
         Internal context manager to open a file, optionally reusing an existing file buffer.
 
         :param relative_file_path: the relative path of the file to open.
         :param file_buffer: an optional existing file buffer to reuse.
+        :param open_in_ls: whether to open the file in the language server, sending the didOpen notification.
+            Set this to False to read the local file buffer without notifying the LS; the file can
+            be opened in the LS later by calling the `ensure_open_in_ls` method on the returned LSPFileBuffer.
         """
         if file_buffer is not None:
+            if open_in_ls:
+                file_buffer.ensure_open_in_ls()
             yield file_buffer
         else:
-            with self.open_file(relative_file_path) as fb:
+            with self.open_file(relative_file_path, open_in_ls=open_in_ls) as fb:
                 yield fb
 
     def insert_text_at_position(self, relative_file_path: str, line: int, column: int, text_to_be_inserted: str) -> ls_types.Position:
@@ -865,14 +948,14 @@ class SolidLanguageServer(ABC):
             log.error("request_references called before Language Server started")
             raise SolidLSPException("Language Server not started")
 
-        if not self._has_waited_for_cross_file_references:
-            # Some LS require waiting for a while before they can return cross-file references.
-            # This is a workaround for such LS that don't have a reliable "finished initializing" signal.
-            sleep(self._get_wait_time_for_cross_file_referencing())
-            self._has_waited_for_cross_file_references = True
-
-        t0 = perf_counter() if _debug_enabled else 0.0
         with self.open_file(relative_file_path):
+            if not self._has_waited_for_cross_file_references:
+                # Some LS require waiting for a while before they can return cross-file references.
+                # This is a workaround for such LS that don't have a reliable "finished initializing" signal.
+                # The waiting has to happen after at least one file was opened in the ls
+                sleep(self._get_wait_time_for_cross_file_referencing())
+                self._has_waited_for_cross_file_references = True
+            t0 = perf_counter() if _debug_enabled else 0.0
             try:
                 response = self._send_references_request(relative_file_path, line=line, column=column)
             except Exception as e:
@@ -1023,7 +1106,6 @@ class SolidLanguageServer(ABC):
 
             num_retries = 0
             while response is None or (response["isIncomplete"] and num_retries < 30):  # type: ignore
-                self.completions_available.wait()
                 response = self.server.send.completion(completion_params)
                 if isinstance(response, list):
                     response = {"items": response, "isIncomplete": False}
@@ -1152,7 +1234,7 @@ class SolidLanguageServer(ABC):
             where the parent attribute will be the file symbol which in turn may have a package symbol as parent.
             If you need a symbol tree that contains file symbols as well, you should use `request_full_symbol_tree` instead.
         """
-        with self._open_file_context(relative_file_path, file_buffer) as file_data:
+        with self._open_file_context(relative_file_path, file_buffer, open_in_ls=False) as file_data:
             # check if the desired result is cached
             cache_key = relative_file_path
             file_hash_and_result = self._document_symbols_cache.get(cache_key)
@@ -1170,6 +1252,7 @@ class SolidLanguageServer(ABC):
                 log.debug("perf: document_symbols_cache STALE path=%s", relative_file_path)
 
             # no cached result: request the root symbols from the language server
+            file_data.ensure_open_in_ls()
             root_symbols = self._request_document_symbols(relative_file_path, file_data)
 
             if root_symbols is None:
@@ -2142,7 +2225,7 @@ class SolidLanguageServer(ABC):
         return self
 
     @property
-    def handler(self) -> SolidLanguageServerHandler:
+    def handler(self) -> LanguageServerProcess:
         """Access the underlying language server handler.
 
         Useful for advanced operations like sending custom commands

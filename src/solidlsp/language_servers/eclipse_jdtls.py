@@ -271,7 +271,7 @@ class EclipseJDTLS(SolidLanguageServer):
                 intellisense_members_path=intellisense_members_path,
             )
 
-        def create_launch_command(self) -> list[str] | str:
+        def create_launch_command(self) -> list[str]:
             # ws_dir is the workspace directory for the EclipseJDTLS server
             ws_dir = str(
                 PurePath(
@@ -739,7 +739,6 @@ class EclipseJDTLS(SolidLanguageServer):
                         "*",
                         " ",
                     ]
-                    self.completions_available.set()
                 if registration["method"] == "workspace/executeCommand":
                     if "java.intellicode.enable" in registration["registerOptions"]["commands"]:
                         self._intellicode_enable_command_available.set()
