@@ -134,6 +134,16 @@ class ModeSelectionDefinition:
     default_modes: Sequence[str] | None = None
 
 
+@dataclass
+class ToolBehaviorConfig:
+    """Shared between SerenaConfig and ProjectConfig, the latter used to override values in the form
+    (same as in ModeSelectionDefinition).
+    The defaults here shall be none and should be set to the global default values in SerenaConfig.
+    """
+
+    symbol_info_budget: float | None = None
+
+
 class SerenaConfigError(Exception):
     pass
 
@@ -163,7 +173,7 @@ class LanguageBackend(Enum):
 
 
 @dataclass(kw_only=True)
-class ProjectConfig(ToolInclusionDefinition, ModeSelectionDefinition, ToStringMixin):
+class ProjectConfig(ToolInclusionDefinition, ToolBehaviorConfig, ModeSelectionDefinition, ToStringMixin):
     project_name: str
     languages: list[Language]
     ignored_paths: list[str] = field(default_factory=list)
@@ -171,12 +181,6 @@ class ProjectConfig(ToolInclusionDefinition, ModeSelectionDefinition, ToStringMi
     ignore_all_files_in_gitignore: bool = True
     initial_prompt: str = ""
     encoding: str = DEFAULT_SOURCE_FILE_ENCODING
-    hover_budget: float | None = None
-    """
-    Per-project override for include_info hover budget (seconds).
-
-    If None, global config is used. 0 disables the budget. Negative values are invalid.
-    """
 
     SERENA_DEFAULT_PROJECT_FILE = "project.yml"
     FIELDS_WITHOUT_DEFAULTS = {"project_name", "languages"}
@@ -329,16 +333,16 @@ class ProjectConfig(ToolInclusionDefinition, ModeSelectionDefinition, ToStringMi
                     f"Invalid language: {orig_language_str}.\nValid language_strings are: {[l.value for l in Language]}"
                 ) from e
 
-        # Validate hover_budget
-        hover_budget_raw = data["hover_budget"]
-        hover_budget = hover_budget_raw
-        if hover_budget is not None:
+        # Validate symbol_info_budget
+        symbol_info_budget_raw = data["symbol_info_budget"]
+        symbol_info_budget = symbol_info_budget_raw
+        if symbol_info_budget is not None:
             try:
-                hover_budget = float(hover_budget_raw)
+                symbol_info_budget = float(symbol_info_budget_raw)
             except (TypeError, ValueError) as e:
-                raise ValueError(f"hover_budget must be a number or null, got: {hover_budget_raw}") from e
-            if hover_budget < 0:
-                raise ValueError(f"hover_budget cannot be negative, got: {hover_budget}")
+                raise ValueError(f"symbol_info_budget must be a number or null, got: {symbol_info_budget_raw}") from e
+            if symbol_info_budget < 0:
+                raise ValueError(f"symbol_info_budget cannot be negative, got: {symbol_info_budget}")
 
         return cls(
             project_name=data["project_name"],
@@ -353,7 +357,7 @@ class ProjectConfig(ToolInclusionDefinition, ModeSelectionDefinition, ToStringMi
             encoding=data["encoding"],
             base_modes=data["base_modes"],
             default_modes=data["default_modes"],
-            hover_budget=hover_budget,
+            symbol_info_budget=symbol_info_budget,
         )
 
     def _to_yaml_dict(self) -> dict:
@@ -481,7 +485,7 @@ class RegisteredProject(ToStringMixin):
 
 
 @dataclass(kw_only=True)
-class SerenaConfig(ToolInclusionDefinition, ModeSelectionDefinition, ToStringMixin):
+class SerenaConfig(ToolInclusionDefinition, ToolBehaviorConfig, ModeSelectionDefinition, ToStringMixin):
     """
     Holds the Serena agent configuration, which is typically loaded from a YAML configuration file
     (when instantiated via :method:`from_config_file`), which is updated when projects are added or removed.
@@ -525,16 +529,16 @@ class SerenaConfig(ToolInclusionDefinition, ModeSelectionDefinition, ToStringMix
     """List of paths to ignore across all projects. Same syntax as gitignore, so you can use * and **.
     These patterns are merged additively with each project's own ignored_paths."""
 
-    hover_budget: float = 10.0
-    """
-    Time budget (seconds) for LSP hover requests when tools request include_info.
-
-    If budget is exceeded, Serena stops issuing further hover requests and returns partial info results.
-    0 disables the budget (no early stopping). Negative values are invalid.
-    """
-
     # settings with overridden defaults
     default_modes: Sequence[str] | None = ("interactive", "editing")
+    symbol_info_budget: float = 10.0
+    """
+    Time budget (seconds) for requests when tools request include_info (currently
+    only supported for LSP-based tools).
+
+    If the budget is exceeded, Serena stops issuing further requests and returns partial info results.
+    0 disables the budget (no early stopping). Negative values are invalid.
+    """
 
     # *** fields that are NOT mapped to/from the configuration file ***
 
