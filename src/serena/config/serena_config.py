@@ -135,7 +135,7 @@ class ModeSelectionDefinition:
 
 
 @dataclass
-class ToolBehaviorConfig:
+class SharedConfig(ModeSelectionDefinition, ToolInclusionDefinition, ToStringMixin):
     """Shared between SerenaConfig and ProjectConfig, the latter used to override values in the form
     (same as in ModeSelectionDefinition).
     The defaults here shall be none and should be set to the global default values in SerenaConfig.
@@ -173,7 +173,7 @@ class LanguageBackend(Enum):
 
 
 @dataclass(kw_only=True)
-class ProjectConfig(ToolInclusionDefinition, ToolBehaviorConfig, ModeSelectionDefinition, ToStringMixin):
+class ProjectConfig(SharedConfig):
     project_name: str
     languages: list[Language]
     ignored_paths: list[str] = field(default_factory=list)
@@ -485,7 +485,7 @@ class RegisteredProject(ToStringMixin):
 
 
 @dataclass(kw_only=True)
-class SerenaConfig(ToolInclusionDefinition, ToolBehaviorConfig, ModeSelectionDefinition, ToStringMixin):
+class SerenaConfig(SharedConfig):
     """
     Holds the Serena agent configuration, which is typically loaded from a YAML configuration file
     (when instantiated via :method:`from_config_file`), which is updated when projects are added or removed.
