@@ -99,12 +99,12 @@ Recommended constellation:
 * Your project is in the WSL file system
 * Serena is run in WSL (not Windows)
 * The IDE has a host component (in WSL) and a client component (on Windows).  
-  The Serena JetBrains plugin should normally be **installed in the host** for code intelligence to be accessible.
+  The Serena JetBrains plugin should normally be **installed in the host** (not the client) for code intelligence to be accessible.
 
 :::{admonition} Plugin Installation Location
 :class: note
 If the plugin is already installed, check the options on the button for disabling the plugin.
-Choose the respective option to ensure the correct installation location (host).
+Choose the respective options to ensure the correct installation location (i.e. host, removing it from the client if necessary).
 :::
 
 :::{admonition} Using mapped Windows paths in WSL is not recommended!
