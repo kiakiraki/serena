@@ -1193,11 +1193,8 @@ class SolidLanguageServer(ABC):
 
             return response
 
-        if file_data is not None:
-            return get_raw_document_symbols(file_data)
-        else:
-            with self.open_file(relative_file_path) as opened_file_data:
-                return get_raw_document_symbols(opened_file_data)
+        with self._open_file_context(relative_file_path, file_buffer=file_data) as fd:
+            return get_raw_document_symbols(fd)
 
     def request_document_symbols(self, relative_file_path: str, file_buffer: LSPFileBuffer | None = None) -> DocumentSymbols:
         """
@@ -1227,7 +1224,6 @@ class SolidLanguageServer(ABC):
                 log.debug("No cache hit for document symbols in %s", relative_file_path)
 
             # no cached result: request the root symbols from the language server
-            file_data.ensure_open_in_ls()
             root_symbols = self._request_document_symbols(relative_file_path, file_data)
 
             if root_symbols is None:
@@ -1406,7 +1402,7 @@ class SolidLanguageServer(ABC):
                         child["parent"] = package_symbol
 
                 elif os.path.isfile(contained_dir_or_file_abs_path):
-                    with self._open_file_context(contained_dir_or_file_rel_path) as file_data:
+                    with self._open_file_context(contained_dir_or_file_rel_path, open_in_ls=False) as file_data:
                         document_symbols = self.request_document_symbols(contained_dir_or_file_rel_path, file_data)
                         file_root_nodes = document_symbols.root_symbols
 
