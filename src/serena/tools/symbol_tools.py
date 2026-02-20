@@ -180,7 +180,6 @@ class FindReferencingSymbolsTool(Tool, ToolMarkerSymbolicRead):
         self,
         name_path: str,
         relative_path: str,
-        include_info: bool = False,
         include_kinds: list[int] = [],  # noqa: B006
         exclude_kinds: list[int] = [],  # noqa: B006
         max_answer_chars: int = -1,
@@ -192,8 +191,6 @@ class FindReferencingSymbolsTool(Tool, ToolMarkerSymbolicRead):
         :param name_path: for finding the symbol to find references for, same logic as in the `find_symbol` tool.
         :param relative_path: the relative path to the file containing the symbol for which to find references.
             Note that here you can't pass a directory but must pass a file.
-        :param include_info: whether to include additional info (hover-like, typically including docstring and signature),
-            about the referencing symbols; can be slow depending on the language (e.g. C/C++).
         :param include_kinds: same as in the `find_symbol` tool.
         :param exclude_kinds: same as in the `find_symbol` tool.
         :param max_answer_chars: same as in the `find_symbol` tool.
@@ -212,12 +209,6 @@ class FindReferencingSymbolsTool(Tool, ToolMarkerSymbolicRead):
             exclude_kinds=parsed_exclude_kinds,
         )
 
-        # Batch-request hover info for referencing symbols (optional and potentially slow).
-        info_by_symbol = {}
-        if not include_body and include_info:
-            ref_symbols = [ref.symbol for ref in references_in_symbols]
-            info_by_symbol = symbol_retriever.request_info_for_symbol_batch(ref_symbols)
-
         reference_dicts = []
         for ref in references_in_symbols:
             ref_dict_orig = ref.symbol.to_dict(kind=True, relative_path=True, depth=0, body=include_body, body_location=True)
@@ -225,8 +216,6 @@ class FindReferencingSymbolsTool(Tool, ToolMarkerSymbolicRead):
             if not include_body:
                 ref_relative_path = ref.symbol.location.relative_path
                 assert ref_relative_path is not None, f"Referencing symbol {ref.symbol.name} has no relative path, this is likely a bug."
-                if include_info and (referencing_symbol_info := info_by_symbol.get(ref.symbol)):
-                    ref_dict["info"] = referencing_symbol_info
                 content_around_ref = self.project.retrieve_content_around_line(
                     relative_file_path=ref_relative_path, line=ref.line, context_lines_before=1, context_lines_after=1
                 )
