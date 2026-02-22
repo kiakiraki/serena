@@ -181,6 +181,11 @@ class ProjectConfig(SharedConfig):
     ignore_all_files_in_gitignore: bool = True
     initial_prompt: str = ""
     encoding: str = DEFAULT_SOURCE_FILE_ENCODING
+    language_backend: LanguageBackend | None = None
+    """
+    The language backend to use for this project.
+    If None, the global setting from SerenaConfig is used.
+    """
 
     SERENA_DEFAULT_PROJECT_FILE = "project.yml"
     FIELDS_WITHOUT_DEFAULTS = {"project_name", "languages"}
@@ -344,6 +349,9 @@ class ProjectConfig(SharedConfig):
             if symbol_info_budget < 0:
                 raise ValueError(f"symbol_info_budget cannot be negative, got: {symbol_info_budget}")
 
+        language_backend_value = data.get("language_backend")
+        language_backend = LanguageBackend.from_str(language_backend_value) if language_backend_value else None
+
         return cls(
             project_name=data["project_name"],
             languages=languages,
@@ -355,6 +363,7 @@ class ProjectConfig(SharedConfig):
             ignore_all_files_in_gitignore=data["ignore_all_files_in_gitignore"],
             initial_prompt=data["initial_prompt"],
             encoding=data["encoding"],
+            language_backend=language_backend,
             base_modes=data["base_modes"],
             default_modes=data["default_modes"],
             symbol_info_budget=symbol_info_budget,
@@ -366,6 +375,7 @@ class ProjectConfig(SharedConfig):
         """
         d = dataclasses.asdict(self)
         d["languages"] = [lang.value for lang in self.languages]
+        d["language_backend"] = self.language_backend.value if self.language_backend is not None else None
         return d
 
     @classmethod

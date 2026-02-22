@@ -17,7 +17,7 @@ from interprompt.jinja_template import JinjaTemplate
 from serena import serena_version
 from serena.analytics import RegisteredTokenCountEstimator, ToolUsageStats
 from serena.config.context_mode import SerenaAgentContext, SerenaAgentMode
-from serena.config.serena_config import LanguageBackend, ModeSelectionDefinition, SerenaConfig, ToolInclusionDefinition
+from serena.config.serena_config import LanguageBackend, ModeSelectionDefinition, ProjectConfig, SerenaConfig, ToolInclusionDefinition
 from serena.dashboard import SerenaDashboardAPI
 from serena.ls_manager import LanguageServerManager
 from serena.project import Project
@@ -318,7 +318,16 @@ class SerenaAgent:
         tool_inclusion_definitions.append(self._context)
         if self._context.single_project:
             tool_inclusion_definitions.extend(self._single_project_context_tool_inclusion_definitions(project))
-        if self.serena_config.language_backend == LanguageBackend.JETBRAINS:
+        # Determine the effective language backend for this session.
+        # If a startup project is provided and has a per-project override, use it; otherwise use the global config.
+        self._effective_language_backend = self.serena_config.language_backend
+        if project is not None:
+            startup_project_config = self._find_project_config(project)
+            if startup_project_config is not None and startup_project_config.language_backend is not None:
+                self._effective_language_backend = startup_project_config.language_backend
+                log.info(f"Using per-project language backend override: {self._effective_language_backend.name}")
+        log.info(f"Effective language backend for this session: {self._effective_language_backend.name}")
+        if self._effective_language_backend == LanguageBackend.JETBRAINS:
             tool_inclusion_definitions.append(SerenaAgentMode.from_name_internal("jetbrains"))
         self._base_tool_set = ToolSet.default().apply(*tool_inclusion_definitions)
         self._exposed_tools = AvailableTools([t for t in self._all_tools.values() if self._base_tool_set.includes_name(t.get_name())])
@@ -615,10 +624,28 @@ class SerenaAgent:
         """
         :return: whether this agent uses language server-based code analysis
         """
-        return self.serena_config.language_backend == LanguageBackend.LSP
+        return self._effective_language_backend == LanguageBackend.LSP
+
+    def _find_project_config(self, project_path_or_name: str) -> ProjectConfig | None:
+        """Find the ProjectConfig for the given project path or name, or None if not found."""
+        registered = self.serena_config.get_registered_project(project_path_or_name)
+        if registered is not None:
+            return registered.project_config
+        return None
 
     def _activate_project(self, project: Project, update_modes_and_tools: bool = True) -> None:
         log.info(f"Activating {project.project_name} at {project.project_root}")
+
+        # Check if the project requires a different language backend than the one initialized at startup
+        project_backend = project.project_config.language_backend
+        if project_backend is not None and project_backend != self._effective_language_backend:
+            raise ValueError(
+                f"Cannot activate project '{project.project_name}': it requires the {project_backend.value} backend, "
+                f"but this session was initialized with {self._effective_language_backend.value}. "
+                f"Workarounds: (1) Use project activation at startup via the --project flag, "
+                f"(2) Configure one MCP server per backend in your client."
+            )
+
         self._active_project = project
 
         if update_modes_and_tools:
@@ -696,6 +723,10 @@ class SerenaAgent:
             result_str += f"Active project: {self._active_project.project_name}\n"
         else:
             result_str += "No active project\n"
+        result_str += f"Language backend: {self._effective_language_backend.value}"
+        if self._active_project and self._active_project.project_config.language_backend is not None:
+            result_str += " (project override)"
+        result_str += f" (global default: {self.serena_config.language_backend.value})\n"
         result_str += "Available projects:\n" + "\n".join(list(self.serena_config.project_names)) + "\n"
         result_str += f"Active context: {self._context.name}\n"
 
