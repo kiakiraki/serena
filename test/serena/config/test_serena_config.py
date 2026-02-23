@@ -217,7 +217,7 @@ class TestEffectiveLanguageBackend:
         config, name = _make_config_with_project("test_proj", language_backend=None, global_backend=LanguageBackend.LSP)
         agent = SerenaAgent(project=name, serena_config=config)
         try:
-            assert agent._effective_language_backend == LanguageBackend.LSP
+            assert agent.get_language_backend() == LanguageBackend.LSP
             assert agent.is_using_language_server() is True
         finally:
             agent.shutdown(timeout=5)
@@ -229,7 +229,7 @@ class TestEffectiveLanguageBackend:
         )
         agent = SerenaAgent(project=name, serena_config=config)
         try:
-            assert agent._effective_language_backend == LanguageBackend.JETBRAINS
+            assert agent.get_language_backend() == LanguageBackend.JETBRAINS
             assert agent.is_using_language_server() is False
         finally:
             agent.shutdown(timeout=5)
@@ -244,7 +244,7 @@ class TestEffectiveLanguageBackend:
         )
         agent = SerenaAgent(project=None, serena_config=config)
         try:
-            assert agent._effective_language_backend == LanguageBackend.LSP
+            assert agent.get_language_backend() == LanguageBackend.LSP
         finally:
             agent.shutdown(timeout=5)
 
