@@ -697,6 +697,7 @@ class LanguageServerSymbolRetriever:
         return self._ls_manager.get_root_path()
 
     def get_language_server(self, relative_path: str) -> SolidLanguageServer:
+        """:param relative_path: relative path to a file"""
         return self._ls_manager.get_language_server(relative_path)
 
     def find(
@@ -837,7 +838,7 @@ class LanguageServerSymbolRetriever:
 
     def get_symbol_overview(self, relative_path: str) -> dict[str, list[LanguageServerSymbol]]:
         """
-        :param relative_path: the path of the file or directory for which to get the symbol overview
+        :param relative_path: the path of the file for which to get the symbol overview
         :return: a mapping from file paths to lists of symbols.
             For the case where a file is passed, the mapping will contain a single entry.
         """

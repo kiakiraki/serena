@@ -1,4 +1,5 @@
 import logging
+import os.path
 import threading
 from collections.abc import Iterator
 
@@ -129,8 +130,11 @@ class LanguageServerManager:
         return ls
 
     def get_language_server(self, relative_path: str) -> SolidLanguageServer:
+        """:param relative_path: relative path to a file"""
         ls: SolidLanguageServer | None = None
         if len(self._language_servers) > 1:
+            if os.path.isdir(relative_path):
+                raise ValueError(f"Expected a file path, but got a directory: {relative_path}")
             for candidate in self._language_servers.values():
                 if not candidate.is_ignored_path(relative_path, ignore_unsupported_files=True):
                     ls = candidate
