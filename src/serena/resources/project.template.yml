@@ -111,6 +111,8 @@ default_modes:
 # (contrary to the memories, which are loaded on demand).
 initial_prompt: ""
 
-# override of the corresponding setting in serena_config.yml, see the documentation there.
-# If null or missing, the value from the global config is used.
+# time budget (seconds) per tool call for the retrieval of additional symbol information
+# such as docstrings or parameter information.
+# This overrides the corresponding setting in the global configuration; see the documentation there.
+# If null or missing, use the setting from the global configuration.
 symbol_info_budget:
