@@ -134,24 +134,6 @@ class ModeSelectionDefinition:
     default_modes: Sequence[str] | None = None
 
 
-@dataclass
-class SharedConfig(ModeSelectionDefinition, ToolInclusionDefinition, ToStringMixin):
-    """Shared between SerenaConfig and ProjectConfig, the latter used to override values in the form
-    (same as in ModeSelectionDefinition).
-    The defaults here shall be none and should be set to the global default values in SerenaConfig.
-    """
-
-    symbol_info_budget: float | None = None
-
-
-class SerenaConfigError(Exception):
-    pass
-
-
-def get_serena_managed_in_project_dir(project_root: str | Path) -> str:
-    return os.path.join(project_root, SERENA_MANAGED_DIR_NAME)
-
-
 class LanguageBackend(Enum):
     LSP = "LSP"
     """
@@ -172,6 +154,25 @@ class LanguageBackend(Enum):
         raise ValueError(f"Unknown language backend '{backend_str}': valid values are {[b.value for b in LanguageBackend]}")
 
 
+@dataclass
+class SharedConfig(ModeSelectionDefinition, ToolInclusionDefinition, ToStringMixin):
+    """Shared between SerenaConfig and ProjectConfig, the latter used to override values in the form
+    (same as in ModeSelectionDefinition).
+    The defaults here shall be none and should be set to the global default values in SerenaConfig.
+    """
+
+    symbol_info_budget: float | None = None
+    language_backend: LanguageBackend | None = None
+
+
+class SerenaConfigError(Exception):
+    pass
+
+
+def get_serena_managed_in_project_dir(project_root: str | Path) -> str:
+    return os.path.join(project_root, SERENA_MANAGED_DIR_NAME)
+
+
 @dataclass(kw_only=True)
 class ProjectConfig(SharedConfig):
     project_name: str
@@ -181,11 +182,6 @@ class ProjectConfig(SharedConfig):
     ignore_all_files_in_gitignore: bool = True
     initial_prompt: str = ""
     encoding: str = DEFAULT_SOURCE_FILE_ENCODING
-    language_backend: LanguageBackend | None = None
-    """
-    The language backend to use for this project.
-    If None, the global setting from SerenaConfig is used.
-    """
 
     SERENA_DEFAULT_PROJECT_FILE = "project.yml"
     FIELDS_WITHOUT_DEFAULTS = {"project_name", "languages"}
