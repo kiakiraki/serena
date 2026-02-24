@@ -672,23 +672,6 @@ class SerenaAgent:
         if self._project_activation_callback is not None:
             self._project_activation_callback()
 
-    def load_project_from_path_or_name(self, project_root_or_name: str, autogenerate: bool) -> Project | None:
-        """
-        Get a project instance from a path or a name.
-
-        :param project_root_or_name: the path to the project root or the name of the project
-        :param autogenerate: whether to autogenerate the project for the case where first argument is a directory
-            which does not yet contain a Serena project configuration file
-        :return: the project instance if it was found/could be created, None otherwise
-        """
-        project_instance: Project | None = self.serena_config.get_project(project_root_or_name)
-        if project_instance is not None:
-            log.info(f"Found registered project '{project_instance.project_name}' at path {project_instance.project_root}")
-        elif autogenerate and os.path.isdir(project_root_or_name):
-            project_instance = self.serena_config.add_project_from_path(project_root_or_name)
-            log.info(f"Added new project {project_instance.project_name} for path {project_instance.project_root}")
-        return project_instance
-
     def activate_project_from_path_or_name(self, project_root_or_name: str, update_modes_and_tools: bool = True) -> Project:
         """
         Activate a project from a path or a name.
@@ -696,16 +679,23 @@ class SerenaAgent:
         If the argument is a path at which no Serena project previously existed, the project will be created beforehand.
         Raises ProjectNotFoundError if the project could neither be found nor created.
 
-        :return: a tuple of the project instance and a Boolean indicating whether the project was newly
-            created
+        :return: the project instance
         """
-        project_instance: Project | None = self.load_project_from_path_or_name(project_root_or_name, autogenerate=True)
+        project_instance: Project | None = self.serena_config.get_project(project_root_or_name)
+        if project_instance is not None:
+            log.info(f"Found registered project '{project_instance.project_name}' at path {project_instance.project_root}")
+        elif os.path.isdir(project_root_or_name):
+            project_instance = self.serena_config.add_project_from_path(project_root_or_name)
+            log.info(f"Added new project {project_instance.project_name} for path {project_instance.project_root}")
+
         if project_instance is None:
             raise ProjectNotFoundError(
                 f"Project '{project_root_or_name}' not found: Not a valid project name or directory. "
                 f"Existing project names: {self.serena_config.project_names}"
             )
+
         self._activate_project(project_instance, update_modes_and_tools=update_modes_and_tools)
+
         return project_instance
 
     def get_active_tool_names(self) -> list[str]:
