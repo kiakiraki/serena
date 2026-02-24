@@ -23,7 +23,8 @@ The global configuration file allows you to change general settings and defaults
 ### Settings
 
 Some of the configurable settings include:
-  * the language backend to use by default (i.e., the JetBrains plugin or language servers)
+  * the language backend to use by default (i.e., the JetBrains plugin or language servers);
+    this can also be [overridden per project](per-project-language-backend)
   * UI settings affecting the [Serena Dashboard and GUI tool](060_dashboard.md)
   * the set of tools to enable/disable by default
   * the set of modes to use by default
