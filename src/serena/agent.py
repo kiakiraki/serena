@@ -17,7 +17,13 @@ from interprompt.jinja_template import JinjaTemplate
 from serena import serena_version
 from serena.analytics import RegisteredTokenCountEstimator, ToolUsageStats
 from serena.config.context_mode import SerenaAgentContext, SerenaAgentMode
-from serena.config.serena_config import LanguageBackend, ModeSelectionDefinition, ProjectConfig, SerenaConfig, ToolInclusionDefinition
+from serena.config.serena_config import (
+    LanguageBackend,
+    ModeSelectionDefinition,
+    RegisteredProject,
+    SerenaConfig,
+    ToolInclusionDefinition,
+)
 from serena.dashboard import SerenaDashboardAPI
 from serena.ls_manager import LanguageServerManager
 from serena.project import Project
@@ -240,6 +246,11 @@ class SerenaAgent:
         # project-specific instances, which will be initialized upon project activation
         self._active_project: Project | None = None
 
+        # determine registered project to be activated (if any)
+        registered_project_to_activate: RegisteredProject | None = (
+            self.serena_config.get_registered_project(project, autoregister=True) if project is not None else None
+        )
+
         # dashboard URL (set when dashboard is started)
         self._dashboard_url: str | None = None
 
@@ -300,6 +311,16 @@ class SerenaAgent:
 
         self._check_shell_settings()
 
+        # determine the effective language backend for this session.
+        # If a startup project is provided and has a per-project override, use it; otherwise use the global config.
+        # Since we don't want to change the toolset after startup, the language backend cannot be changed within a running Serena session
+        self._language_backend = self.serena_config.language_backend
+        if registered_project_to_activate is not None and registered_project_to_activate.project_config.language_backend is not None:
+            self._language_backend = registered_project_to_activate.project_config.language_backend
+            log.info(f"Using language backend as configured in project.yml: {self._language_backend.name}")
+        else:
+            log.info(f"Using language backend from global configuration: {self._language_backend.name}")
+
         # determine the base toolset defining the set of exposed tools (which e.g. the MCP shall see),
         # determined by the
         #   * dashboard availability/opening on launch
@@ -318,22 +339,6 @@ class SerenaAgent:
         tool_inclusion_definitions.append(self._context)
         if self._context.single_project:
             tool_inclusion_definitions.extend(self._single_project_context_tool_inclusion_definitions(project))
-
-        # Determine the effective language backend for this session.
-        # If a startup project is provided and has a per-project override, use it; otherwise use the global config.
-        # Since we don't want to change the toolset after startup, the language backend cannot be changed within a running serena session
-        self._language_backend = self.serena_config.language_backend
-        _backend_from_project_config = False
-        if project is not None:
-            startup_project_config = self._find_project_config(project)
-            if startup_project_config is not None and startup_project_config.language_backend is not None:
-                self._language_backend = startup_project_config.language_backend
-                _backend_from_project_config = True
-        if _backend_from_project_config:
-            log.info(f"Using language backend as configured in project.yml: {self._language_backend.name}")
-        else:
-            log.info(f"Using language backend from global serena config: {self._language_backend.name}")
-
         if self._language_backend == LanguageBackend.JETBRAINS:
             tool_inclusion_definitions.append(SerenaAgentMode.from_name_internal("jetbrains"))
         self._base_tool_set = ToolSet.default().apply(*tool_inclusion_definitions)
@@ -635,13 +640,6 @@ class SerenaAgent:
         :return: whether this agent uses language server-based code analysis
         """
         return self._language_backend == LanguageBackend.LSP
-
-    def _find_project_config(self, project_path_or_name: str) -> ProjectConfig | None:
-        """Find the ProjectConfig for the given project path or name, or None if not found."""
-        registered = self.serena_config.get_registered_project(project_path_or_name)
-        if registered is not None:
-            return registered.project_config
-        return None
 
     def _activate_project(self, project: Project, update_modes_and_tools: bool = True) -> None:
         log.info(f"Activating {project.project_name} at {project.project_root}")
