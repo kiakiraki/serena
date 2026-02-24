@@ -849,7 +849,7 @@ class EclipseJDTLS(SolidLanguageServer):
         log.info("Startup complete")
 
     @override
-    def _request_hover(self, uri: str, line: int, column: int) -> ls_types.Hover | None:
+    def _request_hover(self, file_buffer: LSPFileBuffer, line: int, column: int) -> ls_types.Hover | None:
         # Eclipse JDTLS lazily loads javadocs on first hover request, then caches them.
         # This means the first request often returns incomplete info (just the signature),
         # while subsequent requests return the full javadoc.
@@ -879,12 +879,12 @@ class EclipseJDTLS(SolidLanguageServer):
                 return (1, len(contents))
 
         max_retries = 5
-        best_result = super()._request_hover(uri, line, column)
+        best_result = super()._request_hover(file_buffer, line, column)
         best_score = content_score(best_result)
 
         for _ in range(max_retries):
             sleep(0.05)
-            new_result = super()._request_hover(uri, line, column)
+            new_result = super()._request_hover(file_buffer, line, column)
             new_score = content_score(new_result)
             if new_score > best_score:
                 best_result = new_result
