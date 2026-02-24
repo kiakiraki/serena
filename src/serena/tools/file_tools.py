@@ -7,17 +7,14 @@ File and file system-related tools, specifically for
 """
 
 import os
-import re
 from collections import defaultdict
-from collections.abc import Callable
 from fnmatch import fnmatch
 from pathlib import Path
 from typing import Literal
 
 from serena.tools import SUCCESS_RESULT, EditedFileContext, Tool, ToolMarkerCanEdit, ToolMarkerOptional
 from serena.util.file_system import scan_directory
-from serena.util.text_utils import search_files
-from temp.temp_temp import ContentReplacer
+from serena.util.text_utils import ContentReplacer, search_files
 
 
 class ReadFileTool(Tool):
