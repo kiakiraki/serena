@@ -136,7 +136,7 @@ class JetBrainsPluginClient(ToStringMixin):
         )
         raise ServerNotFoundError(
             f"Found no Serena service in a JetBrains IDE instance for the project at {resolved_path}. "
-            "CRITICAL: Before you continue, ask the user to open this folder as a project in a JetBrains IDE "
+            "STOP. Do not attempt any other tools or workarounds. Ask the user to open this folder as a project in a JetBrains IDE "
             "with the Serena plugin installed and running!"
         )
 
