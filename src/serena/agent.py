@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Optional, TypeVar
 
 from sensai.util import logging
 from sensai.util.logging import LogTime
+from sensai.util.string import TextBuilder
 
 from interprompt.jinja_template import JinjaTemplate
 from serena import serena_version
@@ -23,10 +24,11 @@ from serena.config.serena_config import (
     NamedToolInclusionDefinition,
     RegisteredProject,
     SerenaConfig,
+    SerenaPaths,
     ToolInclusionDefinition,
 )
 from serena.dashboard import SerenaDashboardAPI
-from serena.ls_manager import LanguageServerManager
+from serena.ls_manager import LanguageServerManager, LanguageServerManagerInitialisationError
 from serena.project import Project
 from serena.prompt_factory import SerenaPromptFactory
 from serena.task_executor import TaskExecutor
@@ -252,6 +254,7 @@ class SerenaAgent:
 
         # project-specific instances, which will be initialized upon project activation
         self._active_project: Project | None = None
+        self._lsp_init_error: LanguageServerManagerInitialisationError | None = None
 
         # determine registered project to be activated (if any)
         registered_project_to_activate: RegisteredProject | None = (
@@ -473,12 +476,25 @@ class SerenaAgent:
     def get_language_server_manager_or_raise(self) -> LanguageServerManager:
         language_server_manager = self.get_language_server_manager()
         if language_server_manager is None:
-            raise Exception(
-                "The language server manager is not initialized, indicating a problem during project activation. "
-                "Inform the user, telling them to inspect Serena's logs in order to determine the issue. "
-                "IMPORTANT: Wait for further instructions before you continue!"
+            msg = TextBuilder("The language server manager is not initialized, indicating a problem during project initialisation.")
+            if self._lsp_init_error is not None:
+                msg.with_text(str(self._lsp_init_error))
+            msg.with_text("For details, please check the logs. " + self.get_log_inspection_instructions())
+            msg.with_text(
+                "IMPORTANT: Stop, do not attempt workarounds. Inform the user and wait for further instructions before you continue!"
             )
+            raise Exception(msg.build())
         return language_server_manager
+
+    def get_log_inspection_instructions(self) -> str:
+        if self.serena_config.web_dashboard:
+            return f"Live logs can be inspected via the dashboard at {self.get_dashboard_url()}"
+        else:
+            log_path = SerenaPaths().last_returned_log_file_path
+            if log_path is not None:
+                return f"Find the current log file here: f{log_path}"
+            else:
+                return "Unfortunately, logs are not available. We recommend enabling the web dashboard/logging in general."
 
     def get_context(self) -> SerenaAgentContext:
         return self._context
@@ -816,12 +832,17 @@ class SerenaAgent:
             ls_timeout = tool_timeout - 5  # the LS timeout is for a single call, it should be smaller than the tool timeout
 
         # instantiate and start the necessary language servers
-        self.get_active_project_or_raise().create_language_server_manager(
-            log_level=self.serena_config.log_level,
-            ls_timeout=ls_timeout,
-            trace_lsp_communication=self.serena_config.trace_lsp_communication,
-            ls_specific_settings=self.serena_config.ls_specific_settings,
-        )
+        try:
+            self._lsp_init_error = None
+            self.get_active_project_or_raise().create_language_server_manager(
+                log_level=self.serena_config.log_level,
+                ls_timeout=ls_timeout,
+                trace_lsp_communication=self.serena_config.trace_lsp_communication,
+                ls_specific_settings=self.serena_config.ls_specific_settings,
+            )
+        except LanguageServerManagerInitialisationError as e:
+            self._lsp_init_error = e
+            raise
 
     def add_language(self, language: Language) -> None:
         """

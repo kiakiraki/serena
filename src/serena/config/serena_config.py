@@ -85,6 +85,11 @@ class SerenaPaths:
         """
         file containing the ID of the last read news snippet
         """
+        self.last_returned_log_file_path: str | None = None
+        """
+        the path to the last log file returned by `get_next_log_file_path`. If this is not None, the logs
+        are currently being written to this file
+        """
 
     def get_next_log_file_path(self, prefix: str) -> str:
         """
@@ -93,7 +98,8 @@ class SerenaPaths:
         """
         log_dir = os.path.join(self.serena_user_home_dir, "logs", datetime.now().strftime("%Y-%m-%d"))
         os.makedirs(log_dir, exist_ok=True)
-        return os.path.join(log_dir, prefix + "_" + datetime_tag() + ".txt")
+        self.last_returned_log_file_path = os.path.join(log_dir, prefix + "_" + datetime_tag() + ".txt")
+        return self.last_returned_log_file_path
 
     # TODO: Paths from constants.py should be moved here
 
