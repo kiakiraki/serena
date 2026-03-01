@@ -343,11 +343,10 @@ class SerenaAgent:
         self._mode_overrides = modes
         if project is not None:
             try:
-                self.activate_project_from_path_or_name(project, update_active_modes=True, update_active_tools=False)
+                self.activate_project_from_path_or_name(project, update_active_modes=False, update_active_tools=False)
             except Exception as e:
                 log.error(f"Error activating project '{project}' at startup: {e}", exc_info=e)
-        else:
-            self._update_active_modes()
+        self._update_active_modes()
 
         # determine the base toolset defining the set of exposed tools (which e.g. the MCP shall see),
         self._base_toolset = self._create_base_toolset(
