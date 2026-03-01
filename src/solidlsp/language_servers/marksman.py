@@ -6,6 +6,7 @@ Contains various configurations and settings specific to Markdown.
 import logging
 import os
 import pathlib
+from collections.abc import Hashable
 
 from overrides import override
 
@@ -113,6 +114,10 @@ class Marksman(SolidLanguageServer):
     def is_ignored_dirname(self, dirname: str) -> bool:
         return super().is_ignored_dirname(dirname) or dirname in ["node_modules", ".obsidian", ".vitepress", ".vuepress"]
 
+    def _document_symbols_cache_fingerprint(self) -> Hashable | None:
+        request_document_symbols_override_version = 1
+        return request_document_symbols_override_version
+
     @override
     def request_document_symbols(self, relative_file_path: str, file_buffer: LSPFileBuffer | None = None) -> DocumentSymbols:
         """Override to remap Marksman's heading symbol kinds from String to Namespace.
@@ -124,6 +129,8 @@ class Marksman(SolidLanguageServer):
         (headings are named sections containing other content).
         """
         document_symbols = super().request_document_symbols(relative_file_path, file_buffer=file_buffer)
+
+        # NOTE: When changing this method, also update the cache fingerprint method above
 
         def remap_heading_kinds(symbol: UnifiedSymbolInformation) -> None:
             if symbol["kind"] == SymbolKind.String:
